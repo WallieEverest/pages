@@ -1,5 +1,5 @@
 /*
- * Photo vault: encryption shared by the slideshow and the photo manager.
+ * Photo vault: encryption shared by the slideshow and the Manager (../manager/).
  *
  * Format (all files live in the slideshow folder; tools/encrypt_photos.py uses the same format):
  *   vault.json   {"v":1, "kdf":"PBKDF2-SHA256", "iter":600000, "salt":<base64 16 bytes>, "check":<base64 blob>}
@@ -9,14 +9,21 @@
  *   key        = PBKDF2-HMAC-SHA256(passphrase NFC-normalized UTF-8, salt, iter) -> 32 bytes
  *   check      = blob of the UTF-8 text "slideshow-vault-v1" (used to detect a wrong passphrase)
  *
- * The key is stored on the device in IndexedDB as a non-extractable CryptoKey,
- * so the passphrase itself is never saved and the raw key can't be read back out.
+ * "Remember on this device" stores, in IndexedDB, a non-extractable CryptoKey plus the passphrase
+ * itself (so the Manager can show it and change it). One entry per vault salt, so a device keeps
+ * working across a passphrase change until the new files are uploaded. Lock clears them all.
+ * IndexedDB is per site, so the slideshow and the Manager (../manager/) share what is saved.
+ *
+ * Paths are resolved against this script's folder, so pages in other folders can load
+ * ../slideshow/vault.js and still read the slideshow's files.
  */
 'use strict';
 (function () {
   const te = new TextEncoder(), td = new TextDecoder();
   const CHECK = 'slideshow-vault-v1';
   const ITERATIONS = 600000;
+  const BASE = new URL('./', (document.currentScript && document.currentScript.src) || location.href);
+  const at = path => new URL(path, BASE).href;
 
   const b64enc = u8 => { let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); };
   const b64dec = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -81,23 +88,28 @@
       t.onerror = t.onabort = () => { db.close(); rej(t.error); };
     });
   }
-  async function saveKey(key, vault) {
-    try { await withStore('readwrite', s => s.put({ salt: vault.salt, key }, 'main')); return true; } catch { return false; }
+  async function saveKey(key, vault, pass) {
+    try { await withStore('readwrite', s => s.put({ salt: vault.salt, key, pass }, vault.salt)); return true; } catch { return false; }
   }
-  async function loadKey(vault) {
+  // Returns {key, pass} for this vault (pass is undefined for keys saved by older versions), or null.
+  async function loadSaved(vault) {
     try {
-      const v = await withStore('readonly', s => s.get('main'));
-      if (v && v.salt === vault.salt && await keyMatches(v.key, vault)) return v.key;
+      const v = (await withStore('readonly', s => s.get(vault.salt))) || (await withStore('readonly', s => s.get('main')));
+      if (v && v.salt === vault.salt && await keyMatches(v.key, vault)) return v;
     } catch { /* storage unavailable: ask for the passphrase */ }
     return null;
   }
+  async function loadKey(vault) {
+    const v = await loadSaved(vault);
+    return v ? v.key : null;
+  }
   async function forgetKey() {
-    try { await withStore('readwrite', s => s.delete('main')); } catch {}
+    try { await withStore('readwrite', s => s.clear()); } catch {}
   }
 
   /* ----- Files ----- */
   async function fetchBytes(url) {
-    const r = await fetch(url, { cache: 'no-cache' });
+    const r = await fetch(at(url), { cache: 'no-cache' });
     if (!r.ok) throw new Error('Could not load ' + url + ' (' + r.status + ')');
     return r.arrayBuffer();
   }
@@ -105,7 +117,7 @@
   // Returns the vault description, or null when this site has no vault (unencrypted mode).
   async function loadVault() {
     let r;
-    try { r = await fetch('vault.json', { cache: 'no-cache' }); }
+    try { r = await fetch(at('vault.json'), { cache: 'no-cache' }); }
     catch { return null; }   // offline and never seen a vault: treat as unencrypted
     if (r.status === 404) return null;
     if (!r.ok) throw new Error('Could not load vault.json (' + r.status + ')');
@@ -115,7 +127,7 @@
   }
 
   async function loadList(key) {
-    const r = await fetch('photos.enc', { cache: 'no-cache' });
+    const r = await fetch(at('photos.enc'), { cache: 'no-cache' });
     if (r.status === 404) return [];
     if (!r.ok) throw new Error('Could not load photos.enc (' + r.status + ')');
     const list = JSON.parse(td.decode(await decrypt(key, await r.arrayBuffer())));
@@ -135,7 +147,7 @@
 
   window.Vault = {
     createVault, unlock, encrypt, decrypt, encryptList,
-    saveKey, loadKey, forgetKey,
+    saveKey, loadKey, loadSaved, forgetKey,
     loadVault, loadList, loadPhotoBlob, fetchBytes, randomName
   };
 })();

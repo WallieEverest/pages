@@ -1,7 +1,7 @@
 # Rebuilds slideshow/photos.json whenever photos are added, removed or renamed.
 # Captions you typed into photos.json are kept; new photos get a caption from the filename.
 # Only used for UNENCRYPTED photos. Once slideshow/vault.json exists, this does nothing:
-# the encrypted list (photos.enc) is written by the photo manager or tools/encrypt_photos.py.
+# the encrypted list (photos.enc) is written by the Manager app or tools/encrypt_photos.py.
 name: Update photo list
 
 on:

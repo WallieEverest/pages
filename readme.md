@@ -1,20 +1,21 @@
 # iPhone Web Apps: Boating + Slideshow
 
-Two home-screen apps for iPhone, hosted free on GitHub Pages at **https://wallieeverest.github.io/pages/**. No App Store, no build step, no API keys.
+Home-screen apps for iPhone, hosted free on GitHub Pages at **https://wallieeverest.github.io/pages/**. No App Store, no build step, no API keys.
 
 - **Boating**: local wind, weather and the National Weather Service marine forecast for wherever you are.
 - **Slideshow**: a full-screen photo slideshow, with optional encryption for private photos.
+- **Manager**: adds, captions and encrypts photos for the slideshow.
 
 ```
-index.html                      launcher page linking both apps
+index.html                      launcher page linking the apps
 weather/                        Boating app (Open-Meteo + National Weather Service data)
 slideshow/                      photo slideshow
-  manage.html                   photo manager: encrypts photos for upload
   vault.js                      encryption code shared by the slideshow and manager
   photos/                       photos (encrypted .enc files, or plain images)
   vault.json, photos.enc        created when you switch to encrypted photos
   photos.json                   photo list for unencrypted mode
-tools/encrypt_photos.py         command-line alternative to manage.html
+manager/                        Manager: encrypts photos for upload
+tools/encrypt_photos.py         command-line alternative to the Manager
 .github/workflows/update-photos.yml
 ```
 
@@ -31,7 +32,7 @@ Each app has its own `manifest.json`, service worker and icon, so each becomes a
 
 ## 2. Install on iPhone
 
-Type addresses exactly as shown: they are case-sensitive (`pages`, `weather` and `slideshow` are all lowercase).
+Type addresses exactly as shown: they are case-sensitive (`pages`, `weather`, `slideshow` and `manager` are all lowercase).
 
 **Boating**
 
@@ -44,6 +45,11 @@ Type addresses exactly as shown: they are case-sensitive (`pages`, `weather` and
 
 1. In **Safari**, open `https://wallieeverest.github.io/pages/slideshow/`.
 2. Tap **Share → Add to Home Screen**, keep **Open as Web App** on, tap **Add**.
+
+**Manager** (optional: only needed on the device you add photos from)
+
+1. In **Safari**, open `https://wallieeverest.github.io/pages/manager/`.
+2. Tap **Share → Add to Home Screen** (the name **Manager** is filled in for you), keep **Open as Web App** on, tap **Add**.
 
 Open each app once while online so it can save itself for offline use.
 
@@ -88,15 +94,15 @@ GitHub Pages sites are public, so the slideshow can encrypt your photos. Each ph
 
 **First-time setup**
 
-1. Open `https://wallieeverest.github.io/pages/slideshow/manage.html` in Safari (iPhone) or any browser on a computer.
+1. Open the Manager, `https://wallieeverest.github.io/pages/manager/`, in Safari (iPhone) or any browser on a computer.
 2. Choose a passphrase. Use **four or more random words**: anyone can download the encrypted files and try to guess it. **If you forget it, the photos can't be recovered.** Keep your originals.
 3. Tap **Choose photos…** and pick your photos. Leave *Resize* on: it keeps loading fast and strips GPS location and other hidden data. Edit captions if you like (photos named like `IMG_1234` start with no caption).
 4. Tap **Download update (.zip)**.
 5. Unzip it. On GitHub, open the `slideshow` folder → **Add file → Upload files**, drag in everything from the zip (`vault.json`, `photos.enc` and the `photos` folder), and commit.
-6. Delete the sample photos: the five `.jpg` files in `slideshow/photos/` and `slideshow/photos.json`. Once `vault.json` exists, they're ignored anyway.
-7. Open the slideshow and enter the passphrase. With **Remember on this device** ticked, it isn't asked again. 🔒 (top right, when controls are showing) locks it and forgets the passphrase on that device.
+6. Delete any plain photos left in `slideshow/photos/` (the `.enc` files stay). Keep `slideshow/photos.json`: once `vault.json` exists it is ignored, and it is only used if you go back to unencrypted photos.
+7. Open the slideshow and enter the passphrase. With **Remember on this device** ticked, it isn't asked again. 🔒 (top right, when controls are showing) locks it and forgets the passphrase on that device. The Manager has the same **Remember on this device** option. The two apps share the remembered passphrase: remembering it in either one unlocks both on that device, and locking either one locks both.
 
-**Adding, removing or re-captioning later**: open `manage.html` again, make the changes, and upload the new zip the same way. It replaces `photos.enc`. Removed photos are listed with their file names so you can delete them from `slideshow/photos/`.
+**Adding, removing or re-captioning later**: open the Manager again, make the changes, and upload the new zip the same way. It replaces `photos.enc`. Removed photos are listed with their file names so you can delete them from `slideshow/photos/`.
 
 From an iPhone, GitHub's upload page doesn't keep folders. Upload the `.enc` files from the zip's `photos` folder into `slideshow/photos/`, then upload `photos.enc` and `vault.json` into `slideshow/`.
 
@@ -112,15 +118,15 @@ python3 tools/encrypt_photos.py export ~/backup   # decrypt everything
 git add -A slideshow && git commit -m "Update photos" && git push
 ```
 
-The script and `manage.html` use the same format and passphrase, so you can mix them.
+The script and the Manager use the same format and passphrase, so you can mix them.
 
 **What is and isn't protected**
 
 - Protected: photo contents, captions and original file names. Even GitHub can't see them.
 - Visible to anyone: that the site exists, how many photos there are and roughly how big each one is, and when you uploaded them.
 - **Git history:** if real photos were ever committed unencrypted, they stay in the repo's history even after you delete them. If that happened, the simplest fix is to delete the repository, create a new one, and upload only the encrypted files.
-- The key is stored on each device as a non-exportable browser key. The passphrase itself is never saved.
-- Changing the passphrase means starting a new vault: export with the script, delete `vault.json`, `photos.enc` and `photos/*.enc`, then add the photos again.
+- With **Remember on this device** ticked, the device stores a non-exportable browser key and the passphrase itself, so the Manager can show it. Anyone who can open the apps on your unlocked device can see the passphrase there. Leave the box unticked on shared devices, or use 🔒 / **Lock** to clear it.
+- **Changing the passphrase:** in the Manager, the **Passphrase** box shows the current one (tap **Show**). Type a new one, repeat it, and tap **Download update**. Every photo is re-encrypted with new file names, so the zip contains everything; upload it as usual and delete the old files it lists. Other devices ask for the new passphrase once. Keep the old one until the upload is done: the site uses it until then.
 
 **Technical details:** the key is derived with PBKDF2-HMAC-SHA256 (600,000 iterations, random 16-byte salt in `vault.json`). Each file is a 12-byte random IV followed by AES-256-GCM ciphertext and tag. Everything uses the browser's built-in Web Crypto; there are no third-party libraries.
 
@@ -128,7 +134,6 @@ The script and `manage.html` use the same format and passphrase, so you can mix 
 
 1. Upload images into `slideshow/photos/` on GitHub (Add file → Upload files). JPEG is the safest format; resizing to about 2000 px on the long edge keeps loading fast.
 2. The **Update photo list** action runs automatically and rewrites `photos.json` within a minute. Check the **Actions** tab if it doesn't.
-3. Delete the five sample images whenever you like; the list updates the same way.
 
 **Captions** default to the filename (`grand-canyon_2024.jpg` → "Grand Canyon 2024"). To set your own, edit `photos.json`:
 
@@ -140,11 +145,11 @@ Use `"caption": ""` to show none. The action keeps captions you've written.
 
 Not using the action? Edit `photos.json` by hand; plain strings work too: `["photos/a.jpg", "photos/b.jpg"]`.
 
-**Note:** in this mode, anyone with the URL can see the photos.
+**Note:** in this mode, anyone with the URL can see the photos. Also remove the `slideshow/photos/*.jpg` (and similar) lines from `.gitignore`: they stop plain photos being committed from a local clone while the slideshow is encrypted.
 
 ## Updating the apps
 
-iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v7` and the slideshow at `slideshow-v2`; increase the number), then close and reopen the app on your phone, twice if needed.
+iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v7`, the slideshow at `slideshow-v3` and the Manager at `manager-v1`; increase the number). `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
 
 ## Limitations (iOS web apps)
 
