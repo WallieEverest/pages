@@ -1,2 +1,21 @@
 # Claude instructions: kept local, not published
 configuration.md
+*-plan.md
+
+# Manager downloads: upload the contents, never the zip or the unzipped folder
+slideshow-update-*.zip
+slideshow-update-*/
+
+# Encrypted mode: never publish plain photos (remove these lines to go back to unencrypted photos)
+slideshow/photos/*.jpg
+slideshow/photos/*.jpeg
+slideshow/photos/*.png
+slideshow/photos/*.heic
+slideshow/photos/*.webp
+slideshow/photos/*.gif
+slideshow/photos/*.avif
+
+# Operating system clutter
+Thumbs.db
+desktop.ini
+.DS_Store

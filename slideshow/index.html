@@ -177,7 +177,7 @@ function askPassphrase(vault) {
       btn.disabled = true; $('unlockErr').textContent = 'Unlocking…';
       try {
         const key = await Vault.unlock($('pass').value, vault);
-        if ($('remember').checked) await Vault.saveKey(key, vault);
+        if ($('remember').checked) await Vault.saveKey(key, vault, $('pass').value);
         $('pass').value = ''; f.hidden = true; $('msg').hidden = false;
         resolve(key);
       } catch (e) {
@@ -329,7 +329,7 @@ document.addEventListener('keydown', e => {
       $('lockBtn').hidden = false;
       $('msg').textContent = 'Loading photos…';
       photos = (await Vault.loadList(encKey)).map(e => ({ entry: e, caption: e.c || '' }));
-      if (!photos.length) throw new Error('No photos yet. Add some with the photo manager (manage.html).');
+      if (!photos.length) throw new Error('No photos yet. Add some with the Manager (pages/manager/).');
     } else {
       photos = await loadList();
       if (!photos.length) throw new Error('photos.json is empty. Add some photos to the photos folder.');

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Manage the slideshow's encrypted photos from a local clone of the repo.
-Same format as slideshow/vault.js, so the browser photo manager and this script are interchangeable.
+Same format as slideshow/vault.js, so the Manager app (manager/) and this script are interchangeable.
 
 Setup:  pip install cryptography pillow        (pillow-heif too, if you want to add .HEIC files)
 

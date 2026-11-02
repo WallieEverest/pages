@@ -4,7 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>Photo Manager</title>
+<title>Manager</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Manager">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" href="icons/icon-192.png">
 <style>
   :root {
@@ -58,10 +66,13 @@
   .done li + li { margin-top: 6px; }
   code { font-size: 13px; background: var(--input); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
   .foot { text-align: center; font-size: 14px; color: var(--muted); margin-top: 8px; }
+  .passrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .show { font: inherit; font-size: 15px; border: 0; border-radius: 10px; padding: 0 14px; background: var(--input); color: var(--text); cursor: pointer; }
+  .note.warn { color: var(--danger); }
 </style>
 </head>
 <body>
-  <h1>Photo Manager</h1>
+  <h1>Manager</h1>
   <p class="lead">Encrypts photos on this device and gives you a .zip to upload to GitHub. Nothing leaves this device from this page.</p>
 
   <section class="card stack" id="lockCard">
@@ -71,12 +82,24 @@
       <input type="text" name="username" value="Slideshow" autocomplete="username" hidden>
       <input id="pass1" type="password" placeholder="Passphrase" autocomplete="current-password" required>
       <input id="pass2" type="password" placeholder="Repeat passphrase" autocomplete="new-password" hidden>
+      <label class="check"><input type="checkbox" id="remember" checked>
+        <span>Remember on this device (the slideshow uses it too)</span></label>
       <button class="btn" id="lockSubmit" type="submit">Unlock</button>
       <div class="err" id="lockErr" role="alert"></div>
     </form>
   </section>
 
   <div id="main" hidden>
+    <section class="card stack">
+      <h2>Passphrase</h2>
+      <div class="passrow">
+        <input id="curPass" class="cap" type="password" autocomplete="new-password" aria-label="Passphrase" spellcheck="false" autocapitalize="off">
+        <button class="show" id="showPass" type="button">Show</button>
+      </div>
+      <input id="newPass2" class="cap" type="password" placeholder="Repeat new passphrase" autocomplete="new-password" hidden>
+      <div class="note" id="passNote">To change it, type a new one. Every photo is then re-encrypted in the download.</div>
+    </section>
+
     <section class="card stack">
       <h2>Add photos</h2>
       <label class="check"><input type="checkbox" id="shrink" checked>
@@ -97,10 +120,10 @@
 
     <section class="card stack done" id="after" hidden></section>
 
-    <p class="foot"><a href="./">Open slideshow</a> · <a href="#" id="lockLink">Lock</a></p>
+    <p class="foot"><a href="../slideshow/">Open slideshow</a> · <a href="#" id="lockLink" title="Also locks the slideshow on this device">Lock</a></p>
   </div>
 
-<script src="vault.js"></script>
+<script src="../slideshow/vault.js"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -108,7 +131,10 @@ const te = new TextEncoder();
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
 let vault = null, key = null, isNewVault = false;
-// items: { entry:{f,t,c}, origC, isNew, removed, enc (new only), thumb }
+let pass = '', remember = false;
+let newPass = null;      // a valid new passphrase typed in the Passphrase card, applied on download
+let includeAll = false;  // after a passphrase change every photo file is new, so every download includes them all
+// items: { entry:{f,t,c}, origC, isNew, removed, enc (new, or all after a passphrase change), thumb }
 let items = [];
 
 /* ---------- Unlock / create ---------- */
@@ -118,9 +144,11 @@ let items = [];
   } catch (e) { $('lockNote').textContent = e.message; return; }
   $('lockForm').hidden = false;
   if (vault) {
-    key = await Vault.loadKey(vault);
-    if (key) return start();
-    $('lockNote').textContent = 'Enter the passphrase for your encrypted photos.';
+    const saved = await Vault.loadSaved(vault);
+    if (saved && saved.pass) { key = saved.key; pass = saved.pass; remember = true; return start(); }
+    $('lockNote').textContent = saved
+      ? 'Enter the passphrase once more so this device can show it here.'
+      : 'Enter the passphrase for your encrypted photos.';
     $('pass1').focus();
   } else {
     $('lockTitle').textContent = 'Create a passphrase';
@@ -148,6 +176,8 @@ $('lockForm').onsubmit = async ev => {
       const created = await Vault.createVault(p1);
       vault = created.vault; key = created.key; isNewVault = true;
     }
+    pass = p1; remember = $('remember').checked;
+    if (remember) await Vault.saveKey(key, vault, pass);
     $('lockErr').textContent = '';
     start();
   } catch (e) { $('lockErr').textContent = e.message; }
@@ -159,6 +189,7 @@ $('lockLink').onclick = async e => { e.preventDefault(); await Vault.forgetKey()
 async function start() {
   $('pass1').value = $('pass2').value = '';
   $('lockCard').hidden = true; $('main').hidden = false;
+  $('curPass').value = pass;
   if (!isNewVault) {
     try {
       const list = await Vault.loadList(key);
@@ -167,6 +198,29 @@ async function start() {
   }
   render(); updateSummary(); loadThumbs();
 }
+
+/* ---------- Passphrase: show it, or type a new one to change it ---------- */
+$('showPass').onclick = () => {
+  const hidden = $('curPass').type === 'password';
+  $('curPass').type = $('newPass2').type = hidden ? 'text' : 'password';
+  $('showPass').textContent = hidden ? 'Hide' : 'Show';
+};
+
+function checkNewPass() {
+  const p = $('curPass').value, changed = p !== pass, note = $('passNote');
+  $('newPass2').hidden = !changed;
+  newPass = null;
+  note.classList.toggle('warn', changed);
+  if (!changed) { $('newPass2').value = ''; note.textContent = 'To change it, type a new one. Every photo is then re-encrypted in the download.'; }
+  else if (p.length < 12) note.textContent = 'Use at least 12 characters (several words is easiest).';
+  else if (p !== $('newPass2').value) note.textContent = 'Repeat the new passphrase.';
+  else {
+    newPass = p; note.classList.remove('warn');
+    note.textContent = 'New passphrase. The download will contain every photo re-encrypted with it. Other devices will ask for it once.';
+  }
+  updateSummary();
+}
+$('curPass').oninput = $('newPass2').oninput = checkNewPass;
 
 /* ---------- Images ---------- */
 async function decodeImage(blob) {
@@ -275,6 +329,7 @@ function updateSummary() {
   const edited = items.filter(i => !i.isNew && !i.removed && i.entry.c.trim() !== i.origC).length;
   const parts = [];
   if (isNewVault) parts.push('new passphrase');
+  if (newPass) parts.push('passphrase changed (every photo re-encrypted)');
   if (added) parts.push(`${added} to add`);
   if (removed) parts.push(`${removed} to remove`);
   if (edited) parts.push(`${edited} caption${edited === 1 ? '' : 's'} changed`);
@@ -316,14 +371,43 @@ function makeZip(files) {
 }
 
 /* ---------- Download ---------- */
+// New passphrase: a new vault (new salt and key), and every kept photo decrypted with the old key and
+// encrypted with the new one under a new file name. (Reusing the name would let phones and GitHub's
+// cache keep serving the old-key copy.) The old files are listed for deletion like removed photos.
+let oldFiles = [];
+async function changePassphrase(keep) {
+  const { vault: nv, key: nk } = await Vault.createVault(newPass);
+  const replaced = [];
+  for (let n = 0; n < keep.length; n++) {
+    const it = keep[n];
+    $('summary').textContent = `Re-encrypting ${n + 1} of ${keep.length}…`;
+    const old = it.enc || await Vault.fetchBytes(it.entry.f);
+    it.enc = await Vault.encrypt(nk, new Uint8Array(await Vault.decrypt(key, old)));
+    replaced.push([it, 'photos/' + Vault.randomName() + '.enc']);
+  }
+  for (const [it, f] of replaced) {
+    if (!it.isNew || includeAll) oldFiles.push(it.entry.f);   // may be on GitHub (new photos never downloaded are not)
+    it.entry.f = f;
+  }
+  vault = nv; key = nk; pass = newPass; includeAll = true;
+  if (remember) await Vault.saveKey(key, vault, pass);
+  checkNewPass();
+}
+
 $('dlBtn').onclick = async () => {
   const keep = items.filter(i => !i.removed);
+  const rekeyed = !!newPass;
+  if (rekeyed) {
+    $('dlBtn').disabled = true;
+    try { await changePassphrase(keep); }
+    catch (e) { $('summary').textContent = 'Could not change the passphrase: ' + e.message; $('dlBtn').disabled = false; return; }
+  }
   const list = keep.map(i => ({ f: i.entry.f, t: i.entry.t, c: i.entry.c.trim() }));
   const files = [
     { name: 'vault.json', data: te.encode(JSON.stringify(vault, null, 2) + '\n') },
     { name: 'photos.enc', data: await Vault.encryptList(key, list) }
   ];
-  for (const i of keep) if (i.isNew) files.push({ name: i.entry.f, data: i.enc });
+  for (const i of keep) if (i.isNew || includeAll) files.push({ name: i.entry.f, data: i.enc });
 
   const stamp = new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
   const a = document.createElement('a');
@@ -332,17 +416,20 @@ $('dlBtn').onclick = async () => {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 60000);
 
-  const gone = items.filter(i => i.removed).map(i => i.entry.f);
+  const gone = [...oldFiles, ...items.filter(i => i.removed).map(i => i.entry.f)];
   $('after').innerHTML = `<h2>Downloaded ${esc(a.download)}</h2>
     <ol>
       <li>Unzip it.</li>
       <li>On GitHub, open your repo's <code>slideshow</code> folder, choose <b>Add file → Upload files</b>, drag in everything from the zip (keep the <code>photos</code> folder), and commit.</li>
-      ${gone.length ? `<li>Delete these files from <code>slideshow/photos/</code> (they're no longer in the list):<br>${gone.map(f => `<code>${esc(f.split('/').pop())}</code>`).join(' ')}</li>` : ''}
+      ${gone.length ? `<li>Delete these files from <code>slideshow/photos/</code> (they're no longer used):<br>${gone.map(f => `<code>${esc(f.split('/').pop())}</code>`).join(' ')}</li>` : ''}
       <li>Reopen the slideshow after a minute or two.</li>
+      ${rekeyed ? `<li>The passphrase has changed: other devices will ask for the new one once.${remember ? ' This device switches over by itself.' : ''}</li>` : ''}
     </ol>`;
   $('after').hidden = false;
   $('after').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 </script>
 </body>
 </html>
