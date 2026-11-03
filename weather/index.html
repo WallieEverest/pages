@@ -36,7 +36,7 @@
   html.storm { --bg1: #1a1626; --bg2: #3a3550; }
 
   .top { display: flex; gap: 8px; align-items: center; }
-  .top form { flex: 1; display: flex; min-width: 0; }
+  .top form { flex: 1; display: flex; gap: 8px; min-width: 0; }
   .top input {
     flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--text);
     background: var(--card); border: 1px solid var(--line); border-radius: 12px;
@@ -118,6 +118,7 @@
   <div class="top">
     <form id="searchForm" autocomplete="off">
       <input id="q" type="search" placeholder="ZIP code" inputmode="numeric" maxlength="5" enterkeyhint="search" aria-label="ZIP code">
+      <button class="btn" type="submit">Go</button>
     </form>
     <button class="btn" id="unitBtn" aria-label="Toggle units">°F</button>
   </div>
@@ -542,6 +543,9 @@ $('searchForm').addEventListener('submit', async ev => {
     load();
   } catch (e) { showMsg(e.name === 'AbortError' ? 'The place search is not responding. Try again.' : e.message); }
 });
+
+// The iPhone's number pad has no return key: search as soon as the fifth digit is typed.
+$('q').addEventListener('input', () => { if (/^\d{5}$/.test($('q').value.trim())) $('searchForm').requestSubmit(); });
 
 $('unitBtn').textContent = '°' + units;
 $('unitBtn').addEventListener('click', () => {
