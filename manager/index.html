@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>Manager</title>
-<!-- Opens in Safari (not full screen): GitHub links and downloads work there, and it keeps one copy of the token. -->
+<!-- Opens in Safari (not full screen): GitHub links work there, and it keeps one copy of the token. -->
 <meta name="apple-mobile-web-app-title" content="Manager">
 <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -77,8 +77,7 @@
   .btn.sec { background: var(--input); color: var(--text); }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .two .btn { width: auto; }
-  .linkbtn { font: inherit; font-size: 15px; background: none; border: 0; color: var(--accent); cursor: pointer; display: block; margin-left: auto; margin-right: auto; padding: 4px; }
-  .linkbtn:disabled { color: var(--muted); cursor: default; }
+  .linkbtn { font: inherit; font-size: 15px; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 4px; }
   .ghon { display: flex; align-items: center; gap: 10px; }
   .ghon .note { flex: 1; }
   .ok { color: var(--ok); }
@@ -86,7 +85,7 @@
 </head>
 <body>
   <h1>Manager</h1>
-  <p class="lead">Encrypts photos on this device and gives you a .zip to upload to GitHub. Nothing leaves this device from this page.</p>
+  <p class="lead">Encrypts photos on this device and uploads them to GitHub. Photos and captions are encrypted before they leave this device.</p>
 
   <section class="card stack" id="lockCard">
     <h2 id="lockTitle">Unlock</h2>
@@ -111,7 +110,7 @@
         <button class="show" id="showPass" type="button">Show</button>
       </div>
       <input id="newPass2" class="cap" type="password" placeholder="Repeat new passphrase" autocomplete="new-password" hidden>
-      <div class="note" id="passNote">To change it, type a new one. Every photo is then re-encrypted in the download.</div>
+      <div class="note" id="passNote">To change it, type a new one. Every photo is then re-encrypted in the upload.</div>
     </section>
 
     <section class="card stack" id="ghCard">
@@ -153,8 +152,7 @@
         <div id="confirmText"></div>
         <div class="two"><button class="btn" id="upGo" type="button">Upload</button><button class="btn sec" id="upCancel" type="button">Cancel</button></div>
       </div>
-      <button class="btn" id="upBtn" type="button" hidden disabled>Upload to GitHub…</button>
-      <button class="btn" id="dlBtn" type="button" disabled>Download update (.zip)</button>
+      <button class="btn" id="upBtn" type="button" disabled>Upload to GitHub…</button>
     </section>
 
     <section class="card stack done" id="after" hidden></section>
@@ -172,8 +170,8 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>
 
 let vault = null, key = null, isNewVault = false;
 let pass = '', remember = false;
-let newPass = null;      // a valid new passphrase typed in the Passphrase card, applied on download
-let includeAll = false;  // after a passphrase change every photo file is new, so every download includes them all
+let newPass = null;      // a valid new passphrase typed in the Passphrase card, applied on upload
+let includeAll = false;  // after a passphrase change every photo file is new, so the upload includes them all
 // items: { entry:{f,t,c,x}, origC, origX, isNew, removed, enc (new, or all after a passphrase change), thumb }
 // entry.x: hidden from the slideshow (the tick box); the photo stays in the vault
 let items = [];
@@ -183,7 +181,6 @@ let loaded = { vault: null, list: null };
 let ghExpires = null;
 const vaultSig = v => v ? v.salt + v.check : null;
 const sameBytes = (a, b) => (!a && !b) || (!!a && !!b && a.length === b.length && a.every((x, i) => x === b[i]));
-const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 /* ---------- Unlock / create ---------- */
 (async () => {
@@ -286,8 +283,6 @@ function showGitHub() {
   $('ghOff').hidden = on; $('ghOn').hidden = !on;
   if (on) $('ghStatus').innerHTML = `<span class="ok">Connected</span> to ${esc(GitHub.repo)}`
     + (ghExpires ? `. Token expires ${esc(new Date(ghExpires).toLocaleDateString())}` : '') + '.';
-  $('upBtn').hidden = !on;
-  $('dlBtn').className = on ? 'linkbtn' : 'btn';
   updateSummary();
 }
 $('ghConnect').onclick = async () => {
@@ -316,12 +311,12 @@ function checkNewPass() {
   $('newPass2').hidden = !changed;
   newPass = null;
   note.classList.toggle('warn', changed);
-  if (!changed) { $('newPass2').value = ''; note.textContent = 'To change it, type a new one. Every photo is then re-encrypted in the download.'; }
+  if (!changed) { $('newPass2').value = ''; note.textContent = 'To change it, type a new one. Every photo is then re-encrypted in the upload.'; }
   else if (p.length < 12) note.textContent = 'Use at least 12 characters (several words is easiest).';
   else if (p !== $('newPass2').value) note.textContent = 'Repeat the new passphrase.';
   else {
     newPass = p; note.classList.remove('warn');
-    note.textContent = 'New passphrase. The download will contain every photo re-encrypted with it. Other devices will ask for it once.';
+    note.textContent = 'New passphrase. The upload re-encrypts every photo with it. Other devices will ask for it once.';
   }
   updateSummary();
 }
@@ -449,8 +444,6 @@ $('noneBtn').onclick = () => setAll(true);
 
 let lastParts = [];
 let busy = false;   // an upload is running: keep both buttons off until it ends
-// Only the list changed (captions, ticks): just photos.enc needs to go to GitHub.
-const listOnly = () => !isNewVault && !newPass && !includeAll && !items.some(i => i.isNew || i.removed);
 
 function updateSummary() {
   const added = items.filter(i => i.isNew).length;
@@ -466,52 +459,19 @@ function updateSummary() {
   const shown = toggled.filter(i => !i.entry.x).length, hidden = toggled.length - shown;
   if (shown) parts.push(`${shown} to show`);
   if (hidden) parts.push(`${hidden} to hide`);
-  $('summary').textContent = parts.length ? 'Changes: ' + parts.join(', ') + '.' : 'No changes yet.';
-  $('dlBtn').disabled = $('upBtn').disabled = busy || !parts.length;
-  $('dlBtn').textContent = listOnly() ? 'Download photos.enc' : 'Download update (.zip)';
-  $('confirm').hidden = true; $('upBtn').hidden = !GitHub.connected();   // an edit cancels an open confirmation
+  $('summary').textContent = parts.length ? 'Changes: ' + parts.join(', ') + '.' + (GitHub.connected() ? '' : ' Connect to GitHub (above) to upload them.') : 'No changes yet.';
+  $('upBtn').disabled = busy || !parts.length || !GitHub.connected();
+  $('confirm').hidden = true; $('upBtn').hidden = false;   // an edit cancels an open confirmation
   lastParts = parts;
   const kept = items.filter(i => !i.removed);
   $('listTitle').textContent = `Photos (${kept.length})`;
   $('pickCount').textContent = `${kept.filter(i => !i.entry.x).length} of ${kept.length} in the slideshow`;
 }
 
-/* ---------- Zip (stored, no compression: encrypted data doesn't compress) ---------- */
-const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
-function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
-
-function makeZip(files) {
-  const d = new Date();
-  const time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
-  const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
-  const parts = [], central = [];
-  let offset = 0;
-  for (const f of files) {
-    const name = te.encode(f.name), data = f.data, crc = crc32(data);
-    const h = new DataView(new ArrayBuffer(30));
-    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
-    h.setUint16(10, time, true); h.setUint16(12, date, true); h.setUint32(14, crc, true);
-    h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, name.length, true); h.setUint16(28, 0, true);
-    parts.push(h, name, data);
-    const c = new DataView(new ArrayBuffer(46));
-    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
-    c.setUint16(10, 0, true); c.setUint16(12, time, true); c.setUint16(14, date, true); c.setUint32(16, crc, true);
-    c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, name.length, true);
-    c.setUint32(42, offset, true);
-    central.push(c, name);
-    offset += 30 + name.length + data.length;
-  }
-  const cdSize = central.reduce((s, p) => s + p.byteLength, 0);
-  const end = new DataView(new ArrayBuffer(22));
-  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
-  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
-  return new Blob([...parts, ...central, end], { type: 'application/zip' });
-}
-
-/* ---------- Download ---------- */
+/* ---------- Passphrase change ---------- */
 // New passphrase: a new vault (new salt and key), and every kept photo decrypted with the old key and
 // encrypted with the new one under a new file name. (Reusing the name would let phones and GitHub's
-// cache keep serving the old-key copy.) The old files are listed for deletion like removed photos.
+// cache keep serving the old-key copy.) The old files are deleted in the upload, like removed photos.
 let oldFiles = [];
 async function changePassphrase(keep) {
   const { vault: nv, key: nk } = await Vault.createVault(newPass);
@@ -524,7 +484,7 @@ async function changePassphrase(keep) {
     replaced.push([it, 'photos/' + Vault.randomName() + '.enc']);
   }
   for (const [it, f] of replaced) {
-    if (!it.isNew || includeAll) oldFiles.push(it.entry.f);   // may be on GitHub (new photos never downloaded are not)
+    if (!it.isNew || includeAll) oldFiles.push(it.entry.f);   // may be on GitHub (new photos never uploaded are not)
     it.entry.f = f;
   }
   vault = nv; key = nk; pass = newPass; includeAll = true;
@@ -547,14 +507,6 @@ const buildList = keep => keep.map(i => Object.assign({ f: i.entry.f, t: i.entry
 const goneFiles = () => [...oldFiles, ...items.filter(i => i.removed).map(i => i.entry.f)];
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
-function saveFile(blob, name) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
-}
-
 function showAfter(html) {
   $('after').innerHTML = html;
   $('after').hidden = false;
@@ -563,56 +515,6 @@ function showAfter(html) {
 
 const passNote = rekeyed => rekeyed
   ? `<li>The passphrase has changed: other devices will ask for the new one once.${remember ? ' This device switches over by itself.' : ''}</li>` : '';
-
-/* ---------- Download (to this device; then upload it on GitHub's website) ---------- */
-$('dlBtn').onclick = async () => {
-  $('after').hidden = true;
-  const keep = items.filter(i => !i.removed);
-  const single = listOnly();
-  const rekeyed = !!newPass;
-  if (rekeyed) {
-    $('dlBtn').disabled = true;
-    try { await changePassphrase(keep); }
-    catch (e) { $('summary').textContent = 'Could not change the passphrase: ' + e.message; $('dlBtn').disabled = false; return; }
-  }
-  const listBytes = await Vault.encryptList(key, buildList(keep));
-
-  if (single) {
-    // Only the list changed: one file to upload, nothing to unzip.
-    saveFile(new Blob([listBytes], { type: 'application/octet-stream' }), 'photos.enc');
-    showAfter(`<h2>Downloaded photos.enc</h2>
-      <ol>
-        <li>Open <a href="${GitHub.uploadPage('slideshow')}" target="_blank" rel="noopener">GitHub's upload page for the slideshow folder</a> (signed in).</li>
-        <li>Tap <b>choose your files</b>${isIOS ? ' → <b>Browse</b>, then pick <code>photos.enc</code> in <b>Downloads</b>' : ' and pick the downloaded <code>photos.enc</code>'}. If it was saved as <code>photos (1).enc</code> or similar, rename it to <code>photos.enc</code> first.</li>
-        <li>Tap <b>Commit changes</b>. The slideshow updates in a minute or two.</li>
-      </ol>`);
-    return;
-  }
-
-  const files = [
-    { name: 'vault.json', data: te.encode(JSON.stringify(vault, null, 2) + '\n') },
-    { name: 'photos.enc', data: listBytes }
-  ];
-  for (const i of keep) if (i.isNew || includeAll) files.push({ name: i.entry.f, data: i.enc });
-
-  const stamp = new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
-  const name = `slideshow-update-${stamp}.zip`;
-  saveFile(makeZip(files), name);
-
-  const gone = goneFiles();
-  const photosUp = files.length > 2;
-  showAfter(`<h2>Downloaded ${esc(name)}</h2>
-    <ol>
-      <li>Unzip it${isIOS ? ' (in Files, tap it)' : ''}.</li>
-      ${isIOS
-        ? `<li>Upload <code>photos.enc</code> and <code>vault.json</code> on <a href="${GitHub.uploadPage('slideshow')}" target="_blank" rel="noopener">GitHub's upload page for the slideshow folder</a>, and commit.</li>
-           ${photosUp ? `<li>Upload the files inside the zip's <code>photos</code> folder on <a href="${GitHub.uploadPage('slideshow/photos')}" target="_blank" rel="noopener">the upload page for slideshow/photos</a>, and commit.</li>` : ''}`
-        : `<li>On GitHub, open your repo's <code>slideshow</code> folder, choose <b>Add file → Upload files</b>, drag in everything from the zip (keep the <code>photos</code> folder), and commit.</li>`}
-      ${gone.length ? `<li>Delete these files from <code>slideshow/photos/</code> (they're no longer used):<br>${gone.map(f => `<code>${esc(f.split('/').pop())}</code>`).join(' ')}</li>` : ''}
-      <li>Reopen the slideshow after a minute or two.</li>
-      ${passNote(rekeyed)}
-    </ol>`);
-};
 
 /* ---------- Upload to GitHub (one commit, straight from this page) ---------- */
 $('upBtn').onclick = () => {
@@ -627,9 +529,9 @@ $('upGo').onclick = async () => {
   const keep = items.filter(i => !i.removed);
   const rekeyed = !!newPass, summary = lastParts.join(', ');
   $('confirm').hidden = true; $('after').hidden = true;
-  $('dlBtn').disabled = $('upBtn').disabled = true; $('upBtn').hidden = false;
+  $('upBtn').disabled = true; $('upBtn').hidden = false;
   busy = true;
-  const fail = msg => { $('summary').innerHTML = `<span class="err">${esc(msg)}</span>`; $('upBtn').disabled = $('dlBtn').disabled = false; };
+  const fail = msg => { $('summary').innerHTML = `<span class="err">${esc(msg)}</span>`; $('upBtn').disabled = false; };
   try {
     // Refuse if another device changed the photos since this page loaded them.
     $('summary').textContent = 'Checking GitHub…';

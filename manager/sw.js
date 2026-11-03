@@ -1,6 +1,6 @@
 // Shell, vault and photo list: network first (so changes show up), cache fallback offline.
 // Encrypted photos (for thumbnails): cache first, sharing the slideshow's photo cache so nothing is stored twice.
-const VERSION = 'manager-v6';
+const VERSION = 'manager-v7';
 const PHOTOS = 'slideshow-photos';
 const SHELL = ['./', 'index.html', 'github.js', 'manifest.json', 'icons/icon-180.png', 'icons/icon-192.png', '../slideshow/vault.js'];
 

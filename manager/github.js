@@ -140,7 +140,6 @@
 
   window.GitHub = {
     repo: OWNER + '/' + REPO,
-    uploadPage: dir => `https://github.com/${OWNER}/${REPO}/upload/${BRANCH}/${dir}`,
     tokenPage: 'https://github.com/settings/personal-access-tokens/new',
     connected: () => !!token,
     loadToken, saveToken, rekey, forgetToken, check, readHead, readFile, upload

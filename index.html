@@ -37,17 +37,14 @@
   <div class="how">
     <b>Install on iPhone or iPad</b>
     <ol>
-      <li>Open an app above (or this page) in Safari.</li>
+      <li>Open an app above in Safari.</li>
       <li>Tap <b>Share</b>, then <b>Add to Home Screen</b>.</li>
-      <li><b>Boating</b> and <b>Slideshow</b>: keep <b>Open as Web App</b> on (they open full screen).
-        <b>Manager</b> and <b>My Apps</b>: turn it off (they open in Safari). Tap <b>Add</b>.</li>
-      <li>An icon added before keeps its old mode: delete it and add it again.</li>
     </ol>
   </div>
   <p class="foot" id="ver"></p>
 <script>
 // This page has no service worker, so its version is kept here: bump it when the launcher changes.
-const VERSION = 'my-apps-v1';
+const VERSION = 'my-apps-v2';
 document.getElementById('ver').textContent = 'My Apps v' + VERSION.split('-v').pop();
 document.getElementById('ver').title = VERSION;
 // Each app's deployed version, from VERSION in its sw.js.
