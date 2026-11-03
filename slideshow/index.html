@@ -41,7 +41,22 @@
     bottom: 0; padding: 32px 16px calc(env(safe-area-inset-bottom) + 14px);
     background: linear-gradient(transparent, rgba(0,0,0,0.7));
   }
-  #caption { font-size: 17px; text-align: center; min-height: 22px; margin-bottom: 12px; text-shadow: 0 1px 3px #000; }
+
+  /* Caption banner: outside the stage and the controls, so neither the slow zoom nor hiding the controls affects it */
+  #banner {
+    position: fixed; z-index: 1; left: var(--bl, 0px); width: var(--bw, 100%);
+    bottom: max(var(--bb, 0px), env(safe-area-inset-bottom, 0px));
+    padding: 0.35em 0.8em; background: rgba(0,0,0,0.45); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    font-size: var(--cap); line-height: 1.3; text-align: center; text-shadow: 0 1px 2px #000; pointer-events: none;
+    transition: opacity var(--fade, 1s) ease, bottom 0.3s ease, left 0.3s ease, width 0.3s ease;
+  }
+  #banner.off { opacity: 0; }
+  #capText { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+  body { --cap: clamp(18px, 3.2vmin, 36px); }
+  body.cap-S { --cap: clamp(14px, 2.4vmin, 26px); }
+  body.cap-L { --cap: clamp(24px, 4.4vmin, 50px); }
+  body.cap-XL { --cap: clamp(32px, 6vmin, 68px); }
+  body.loading #banner { display: none; }
   .controls { display: flex; justify-content: center; align-items: center; gap: 6px; flex-wrap: wrap; }
   .controls button, .controls select {
     font: inherit; font-size: 15px; color: #fff; background: rgba(255,255,255,0.16);
@@ -84,6 +99,8 @@
     <img class="slide" id="imgB" alt="">
   </div>
 
+  <div id="banner" class="off" aria-live="polite"><span id="capText"></span></div>
+
   <div class="ui bar-top">
     <span id="counter"></span>
     <span class="top-right">
@@ -93,7 +110,6 @@
   </div>
 
   <div class="ui bar-bot">
-    <div id="caption"></div>
     <div class="controls">
       <button id="prevBtn" aria-label="Previous">‹</button>
       <button id="playBtn" aria-label="Play or pause">▶︎</button>
@@ -105,6 +121,7 @@
       <button id="shuffleBtn" aria-label="Shuffle">⇄</button>
       <button id="fitBtn" aria-label="Fill screen">⤢</button>
       <button id="kbBtn" aria-label="Slow zoom">⊕</button>
+      <button id="capBtn" aria-label="Caption size">Aa</button>
     </div>
   </div>
 
@@ -130,7 +147,9 @@ const store = {
 };
 const $ = id => document.getElementById(id);
 
-const prefs = Object.assign({ seconds: 5, shuffle: false, cover: false, kenburns: true }, store.get('prefs', {}));
+const CAP_SIZES = ['S', 'M', 'L', 'XL'];
+const prefs = Object.assign({ seconds: 5, shuffle: false, cover: false, kenburns: true, capSize: 'M' }, store.get('prefs', {}));
+if (!CAP_SIZES.includes(prefs.capSize)) prefs.capSize = 'M';
 const savePrefs = () => store.set('prefs', prefs);
 
 let photos = [];     // plain: [{src, caption}]   encrypted: [{entry, caption}]
@@ -152,7 +171,7 @@ async function loadList() {
   if (!r.ok) throw new Error('Could not load photos.json (' + r.status + ')');
   const list = await r.json();
   return list.map(p => typeof p === 'string' ? { src: p } : p)
-             .filter(p => p && p.src)
+             .filter(p => p && p.src && p.show !== false)
              .map(p => ({ src: p.src, caption: p.caption !== undefined ? p.caption : captionFrom(p.src) }));
 }
 
@@ -230,7 +249,6 @@ async function show(newPos, instant) {
   const n = order.length;
   pos = mod(newPos);
   const my = ++showToken, p = photos[order[pos]];
-  $('caption').textContent = p.caption || '';
   $('counter').textContent = (pos + 1) + ' / ' + n;
   clearTimeout(timer);
   let url;
@@ -248,6 +266,7 @@ async function show(newPos, instant) {
     target.classList.add('show');
     front.classList.remove('show');
     [front, back] = [target, front];
+    setCaption(p.caption, target);
     if (instant) requestAnimationFrame(() => { front.style.transition = back.style.transition = ''; });
   };
   target.onerror = () => { $('status').textContent = 'Could not show photo ' + (pos + 1); };
@@ -258,6 +277,30 @@ async function show(newPos, instant) {
 }
 const next = () => show(pos + 1);
 const prev = () => show(pos - 1);
+
+/* ---------- Caption banner ---------- */
+// Set together with the photo it belongs to, so the caption never runs ahead of a slow-loading photo.
+let capFor = null;   // the image the banner is placed over
+function setCaption(text, img) {
+  $('capText').textContent = text || '';
+  $('banner').classList.toggle('off', !text);
+  capFor = img;
+  placeBanner();
+}
+// In Fit mode the banner sits on the photo's bottom edge (where it is drawn, ignoring the slow zoom);
+// in Fill mode the photo covers the screen, so it runs along the screen's bottom. While the controls
+// are showing it moves up above them.
+function placeBanner() {
+  const vw = innerWidth, vh = innerHeight, st = document.body.style;
+  let left = 0, width = vw, bottom = 0;
+  if (!prefs.cover && capFor && capFor.naturalWidth) {
+    const s = Math.min(vw / capFor.naturalWidth, vh / capFor.naturalHeight);
+    width = capFor.naturalWidth * s; left = (vw - width) / 2; bottom = (vh - capFor.naturalHeight * s) / 2;
+  }
+  if (!document.body.classList.contains('hide-ui')) bottom = Math.max(bottom, vh - document.querySelector('.controls').getBoundingClientRect().top + 8);
+  st.setProperty('--bl', left + 'px'); st.setProperty('--bw', width + 'px'); st.setProperty('--bb', bottom + 'px');
+}
+addEventListener('resize', placeBanner);
 
 /* ---------- Playback ---------- */
 function schedule() { clearTimeout(timer); timer = setTimeout(next, prefs.seconds * 1000); }
@@ -287,12 +330,15 @@ function applyPrefs() {
   $('shuffleBtn').classList.toggle('on', prefs.shuffle);
   $('fitBtn').classList.toggle('on', prefs.cover);
   $('kbBtn').classList.toggle('on', prefs.kenburns);
+  CAP_SIZES.forEach(c => document.body.classList.toggle('cap-' + c, c === prefs.capSize));
+  placeBanner();
 }
 
 /* ---------- Controls UI ---------- */
-function showUi() { document.body.classList.remove('hide-ui'); hideUiSoon(); }
-function hideUiSoon() { clearTimeout(uiTimer); if (playing) uiTimer = setTimeout(() => document.body.classList.add('hide-ui'), 3000); }
-function toggleUi() { document.body.classList.contains('hide-ui') ? showUi() : (document.body.classList.add('hide-ui'), clearTimeout(uiTimer)); }
+function showUi() { document.body.classList.remove('hide-ui'); placeBanner(); hideUiSoon(); }
+function hideUi() { clearTimeout(uiTimer); document.body.classList.add('hide-ui'); placeBanner(); }
+function hideUiSoon() { clearTimeout(uiTimer); if (playing) uiTimer = setTimeout(hideUi, 3000); }
+function toggleUi() { document.body.classList.contains('hide-ui') ? showUi() : hideUi(); }
 
 $('playBtn').onclick = () => setPlaying(!playing);
 $('nextBtn').onclick = () => { next(); showUi(); };
@@ -301,6 +347,12 @@ $('speed').onchange = e => { prefs.seconds = +e.target.value; savePrefs(); apply
 $('shuffleBtn').onclick = () => { prefs.shuffle = !prefs.shuffle; savePrefs(); applyPrefs(); buildOrder(true); show(pos, true); showUi(); };
 $('fitBtn').onclick = () => { prefs.cover = !prefs.cover; savePrefs(); applyPrefs(); showUi(); };
 $('kbBtn').onclick = () => { prefs.kenburns = !prefs.kenburns; savePrefs(); applyPrefs(); showUi(); };
+let capBtnTimer = null;
+$('capBtn').onclick = () => {
+  prefs.capSize = CAP_SIZES[(CAP_SIZES.indexOf(prefs.capSize) + 1) % CAP_SIZES.length]; savePrefs(); applyPrefs(); showUi();
+  $('capBtn').textContent = prefs.capSize;
+  clearTimeout(capBtnTimer); capBtnTimer = setTimeout(() => { $('capBtn').textContent = 'Aa'; }, 1200);
+};
 document.querySelectorAll('.ui').forEach(el => el.addEventListener('touchstart', e => e.stopPropagation(), { passive: true }));
 
 /* ---------- Gestures: swipe to change, tap to show/hide controls ---------- */
@@ -328,14 +380,17 @@ document.addEventListener('keydown', e => {
       encKey = (await Vault.loadKey(vault)) || (await askPassphrase(vault));
       $('lockBtn').hidden = false;
       $('msg').textContent = 'Loading photos…';
-      photos = (await Vault.loadList(encKey)).map(e => ({ entry: e, caption: e.c || '' }));
-      if (!photos.length) throw new Error('No photos yet. Add some with the Manager (pages/manager/).');
+      const list = await Vault.loadList(encKey);
+      if (!list.length) throw new Error('No photos yet. Add some with the Manager (pages/manager/).');
+      photos = list.filter(e => !e.x).map(e => ({ entry: e, caption: e.c || '' }));
+      if (!photos.length) throw new Error('All photos are hidden. Tick some in the Manager (pages/manager/).');
     } else {
       photos = await loadList();
-      if (!photos.length) throw new Error('photos.json is empty. Add some photos to the photos folder.');
+      if (!photos.length) throw new Error('photos.json has no photos to show. Add some to the photos folder (or check for "show": false).');
     }
     $('msg').remove();
     document.body.classList.remove('loading');
+    placeBanner();
     buildOrder(false);
     show(0, true);
     setPlaying(true);

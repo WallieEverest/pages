@@ -10,6 +10,8 @@ Usage (run from the repo root, then git add/commit/push):
   python3 tools/encrypt_photos.py list
   python3 tools/encrypt_photos.py caption NUMBER "New caption"
   python3 tools/encrypt_photos.py remove NUMBER [NUMBER ...]
+  python3 tools/encrypt_photos.py hide NUMBER [NUMBER ...]   (keep in the vault, skip in the slideshow)
+  python3 tools/encrypt_photos.py show NUMBER [NUMBER ...]
   python3 tools/encrypt_photos.py export FOLDER        (decrypt everything, e.g. for a backup)
 
 The passphrase is asked for interactively, or read from the SLIDESHOW_PASS environment variable.
@@ -160,13 +162,23 @@ def cmd_list(v, a):
     if not v.items:
         print("No photos yet.")
     for i, it in enumerate(v.items, 1):
-        print(f"{i:3}. {it['f']}  {it.get('c') or '(no caption)'}")
+        print(f"{i:3}. {it['f']}  {it.get('c') or '(no caption)'}" + ("  (hidden)" if it.get("x") else ""))
 
 def cmd_caption(v, a):
     v.unlock()
     v.pick([a.number])[0]["c"] = a.text
     v.save_list()
     print("Caption updated.")
+
+def cmd_hide(v, a, hide=True):
+    v.unlock()
+    for it in v.pick(a.numbers):
+        if hide:
+            it["x"] = 1
+        else:
+            it.pop("x", None)
+    v.save_list()
+    print(("Hidden: " if hide else "Shown: ") + ", ".join(map(str, a.numbers)))
 
 def cmd_remove(v, a):
     v.unlock()
@@ -201,11 +213,14 @@ def main():
     sub.add_parser("list", help="list photos")
     p = sub.add_parser("caption", help="change a caption"); p.add_argument("number", type=int); p.add_argument("text")
     p = sub.add_parser("remove", help="remove photos"); p.add_argument("numbers", type=int, nargs="+")
+    p = sub.add_parser("hide", help="skip photos in the slideshow (they stay in the vault)"); p.add_argument("numbers", type=int, nargs="+")
+    p = sub.add_parser("show", help="include hidden photos again"); p.add_argument("numbers", type=int, nargs="+")
     p = sub.add_parser("export", help="decrypt all photos into a folder"); p.add_argument("folder")
     a = ap.parse_args()
     if not os.path.isdir(a.dir):
         sys.exit(f"Folder '{a.dir}' not found. Run from the repo root or pass --dir.")
-    {"add": cmd_add, "list": cmd_list, "caption": cmd_caption, "remove": cmd_remove, "export": cmd_export}[a.cmd](Vault(a.dir), a)
+    {"add": cmd_add, "list": cmd_list, "caption": cmd_caption, "remove": cmd_remove, "export": cmd_export,
+     "hide": cmd_hide, "show": lambda v, a: cmd_hide(v, a, hide=False)}[a.cmd](Vault(a.dir), a)
 
 if __name__ == "__main__":
     main()
