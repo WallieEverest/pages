@@ -85,7 +85,8 @@ If you had an older home-screen icon (for example one named *Weather*, or one ad
 ## Slideshow
 
 **Controls:** swipe left/right to change photos, tap to show or hide controls. Controls hide themselves after 3 seconds while playing.
-Buttons: previous, play/pause, next, seconds per photo, shuffle (⇄), fill screen (⤢), and slow zoom.
+Buttons: previous, play/pause, next, seconds per photo, shuffle (⇄), fill screen (⤢), slow zoom, and caption size (**Aa**: each tap steps through S, M, L and XL).
+**Captions** stay on screen in a banner over the bottom of the photo, whether the controls are showing or not. While the controls are showing, the banner moves up above them.
 Settings are remembered. The screen stays on while playing (iOS 16.4 and later).
 
 ### Private photos (encrypted), recommended
@@ -104,6 +105,8 @@ GitHub Pages sites are public, so the slideshow can encrypt your photos. Each ph
 
 **Adding, removing or re-captioning later**: open the Manager again, make the changes, and upload the new zip the same way. It replaces `photos.enc`. Removed photos are listed with their file names so you can delete them from `slideshow/photos/`.
 
+**Choosing which photos play**: untick a photo's box in the Manager to leave it (and its caption) out of the slideshow without deleting it. **All** / **None** tick or untick everything, so you can keep a large library and play a chosen set from it. Tick it again any time to bring it back. If you only change ticks, the zip's photo files haven't changed: uploading `photos.enc` is enough.
+
 From an iPhone, GitHub's upload page doesn't keep folders. Upload the `.enc` files from the zip's `photos` folder into `slideshow/photos/`, then upload `photos.enc` and `vault.json` into `slideshow/`.
 
 **Command line alternative** (if you keep a local clone of the repo):
@@ -114,6 +117,7 @@ python3 tools/encrypt_photos.py add ~/Pictures/trip/*.jpg
 python3 tools/encrypt_photos.py list
 python3 tools/encrypt_photos.py caption 3 "Mom's 70th birthday"
 python3 tools/encrypt_photos.py remove 5 6        # also deletes the .enc files
+python3 tools/encrypt_photos.py hide 7 8          # skip in the slideshow, keep in the vault (show 7 8 to undo)
 python3 tools/encrypt_photos.py export ~/backup   # decrypt everything
 git add -A slideshow && git commit -m "Update photos" && git push
 ```
@@ -141,7 +145,7 @@ The script and the Manager use the same format and passphrase, so you can mix th
 { "src": "photos/IMG_4021.jpg", "caption": "Mom's 70th birthday" }
 ```
 
-Use `"caption": ""` to show none. The action keeps captions you've written.
+Use `"caption": ""` to show none. Add `"show": false` to leave a photo out of the slideshow without deleting it. The action keeps what you've written.
 
 Not using the action? Edit `photos.json` by hand; plain strings work too: `["photos/a.jpg", "photos/b.jpg"]`.
 
@@ -149,7 +153,7 @@ Not using the action? Edit `photos.json` by hand; plain strings work too: `["pho
 
 ## Updating the apps
 
-iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v7`, the slideshow at `slideshow-v3` and the Manager at `manager-v1`; increase the number). `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
+iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v7`, the slideshow at `slideshow-v4` and the Manager at `manager-v2`; increase the number). `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
 
 ## Limitations (iOS web apps)
 

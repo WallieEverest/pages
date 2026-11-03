@@ -52,13 +52,19 @@
   .check { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; }
   .check input { margin-top: 3px; width: 18px; height: 18px; flex: none; }
 
-  .row { display: grid; grid-template-columns: 64px 1fr 40px; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+  .row { display: grid; grid-template-columns: 24px 64px 1fr 40px; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
   .row:first-child { border-top: 0; }
   .thumb { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; background: var(--input); display: block; }
   .tag { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
   .row.removed .tag { color: var(--danger); }
   .row.removed .thumb, .row.removed .cap { opacity: 0.35; }
   .row.removed .cap { text-decoration: line-through; }
+  .row.off .thumb, .row.off .cap { opacity: 0.45; }
+  .row.off .tag { color: var(--muted); }
+  .vis { width: 22px; height: 22px; margin: 0; cursor: pointer; }
+  .pick { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--muted); padding-bottom: 6px; }
+  .pick span { flex: 1; }
+  .pick button { font: inherit; font-size: 14px; border: 0; border-radius: 8px; padding: 6px 12px; background: var(--input); color: var(--text); cursor: pointer; }
   .x { width: 40px; height: 40px; border-radius: 20px; border: 0; background: var(--input); color: var(--text); font-size: 16px; cursor: pointer; }
   .empty { color: var(--muted); font-size: 15px; padding: 8px 0; }
   .done { border: 1px solid var(--ok); }
@@ -110,6 +116,8 @@
 
     <section class="card">
       <h2 id="listTitle" style="margin-bottom:6px">Photos</h2>
+      <div class="pick" id="pick" hidden><span id="pickCount"></span>
+        <button type="button" id="allBtn">All</button><button type="button" id="noneBtn">None</button></div>
       <div id="list"></div>
     </section>
 
@@ -134,7 +142,8 @@ let vault = null, key = null, isNewVault = false;
 let pass = '', remember = false;
 let newPass = null;      // a valid new passphrase typed in the Passphrase card, applied on download
 let includeAll = false;  // after a passphrase change every photo file is new, so every download includes them all
-// items: { entry:{f,t,c}, origC, isNew, removed, enc (new, or all after a passphrase change), thumb }
+// items: { entry:{f,t,c,x}, origC, origX, isNew, removed, enc (new, or all after a passphrase change), thumb }
+// entry.x: hidden from the slideshow (the tick box); the photo stays in the vault
 let items = [];
 
 /* ---------- Unlock / create ---------- */
@@ -193,7 +202,7 @@ async function start() {
   if (!isNewVault) {
     try {
       const list = await Vault.loadList(key);
-      items = list.map(e => ({ entry: { f: e.f, t: e.t || 'image/jpeg', c: e.c || '' }, origC: e.c || '', isNew: false, removed: false }));
+      items = list.map(e => ({ entry: { f: e.f, t: e.t || 'image/jpeg', c: e.c || '', x: !!e.x }, origC: e.c || '', origX: !!e.x, isNew: false, removed: false }));
     } catch (e) { $('list').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
   }
   render(); updateSummary(); loadThumbs();
@@ -288,8 +297,8 @@ $('files').onchange = async e => {
       }
       const thumb = thumbCanvas ? URL.createObjectURL(await toJpeg(thumbCanvas, 0.8)) : '';
       const enc = await Vault.encrypt(key, bytes);
-      items.push({ entry: { f: 'photos/' + Vault.randomName() + '.enc', t: type, c: defaultCaption(file.name) },
-                   origC: null, isNew: true, removed: false, enc, thumb });
+      items.push({ entry: { f: 'photos/' + Vault.randomName() + '.enc', t: type, c: defaultCaption(file.name), x: false },
+                   origC: null, origX: false, isNew: true, removed: false, enc, thumb });
     } catch { failed.push(file.name); }
   }
   const ok = files.length - failed.length;
@@ -302,11 +311,14 @@ $('files').onchange = async e => {
 function render() {
   const box = $('list');
   box.textContent = '';
+  $('pick').hidden = !items.length;
   if (!items.length) { box.innerHTML = '<div class="empty">No photos yet. Choose some above.</div>'; return; }
   for (const it of items) {
     const row = document.createElement('div');
-    row.className = 'row' + (it.removed ? ' removed' : '');
-    row.innerHTML = `<img class="thumb" alt=""><div>${it.isNew ? '<div class="tag">New</div>' : it.removed ? '<div class="tag">Will be removed</div>' : ''}
+    row.className = 'row' + (it.removed ? ' removed' : it.entry.x ? ' off' : '');
+    const tag = it.removed ? 'Will be removed' : it.isNew ? 'New' + (it.entry.x ? ' · hidden' : '') : it.entry.x ? 'Hidden' : '';
+    row.innerHTML = `<input type="checkbox" class="vis" aria-label="In slideshow" title="In slideshow">
+      <img class="thumb" alt=""><div>${tag ? `<div class="tag">${tag}</div>` : ''}
       <input class="cap" placeholder="No caption" aria-label="Caption"></div>
       <button class="x" aria-label="${it.removed ? 'Keep' : 'Remove'}">${it.removed ? '↺' : '✕'}</button>`;
     it.img = row.querySelector('img');
@@ -314,6 +326,9 @@ function render() {
     const cap = row.querySelector('.cap');
     cap.value = it.entry.c; cap.disabled = it.removed;
     cap.oninput = () => { it.entry.c = cap.value; updateSummary(); };
+    const vis = row.querySelector('.vis');
+    vis.checked = !it.entry.x; vis.disabled = it.removed;
+    vis.onchange = () => { it.entry.x = !vis.checked; render(); updateSummary(); };
     row.querySelector('.x').onclick = () => {
       if (it.isNew) { if (it.thumb) URL.revokeObjectURL(it.thumb); items.splice(items.indexOf(it), 1); }
       else it.removed = !it.removed;
@@ -322,6 +337,9 @@ function render() {
     box.appendChild(row);
   }
 }
+const setAll = x => { for (const it of items) if (!it.removed) it.entry.x = x; render(); updateSummary(); };
+$('allBtn').onclick = () => setAll(false);
+$('noneBtn').onclick = () => setAll(true);
 
 function updateSummary() {
   const added = items.filter(i => i.isNew).length;
@@ -333,9 +351,15 @@ function updateSummary() {
   if (added) parts.push(`${added} to add`);
   if (removed) parts.push(`${removed} to remove`);
   if (edited) parts.push(`${edited} caption${edited === 1 ? '' : 's'} changed`);
+  const toggled = items.filter(i => !i.isNew && !i.removed && i.entry.x !== i.origX);
+  const shown = toggled.filter(i => !i.entry.x).length, hidden = toggled.length - shown;
+  if (shown) parts.push(`${shown} to show`);
+  if (hidden) parts.push(`${hidden} to hide`);
   $('summary').textContent = parts.length ? 'Changes: ' + parts.join(', ') + '.' : 'No changes yet.';
   $('dlBtn').disabled = !parts.length;
-  $('listTitle').textContent = `Photos (${items.filter(i => !i.removed).length})`;
+  const kept = items.filter(i => !i.removed);
+  $('listTitle').textContent = `Photos (${kept.length})`;
+  $('pickCount').textContent = `${kept.filter(i => !i.entry.x).length} of ${kept.length} in the slideshow`;
 }
 
 /* ---------- Zip (stored, no compression: encrypted data doesn't compress) ---------- */
@@ -402,7 +426,7 @@ $('dlBtn').onclick = async () => {
     try { await changePassphrase(keep); }
     catch (e) { $('summary').textContent = 'Could not change the passphrase: ' + e.message; $('dlBtn').disabled = false; return; }
   }
-  const list = keep.map(i => ({ f: i.entry.f, t: i.entry.t, c: i.entry.c.trim() }));
+  const list = keep.map(i => Object.assign({ f: i.entry.f, t: i.entry.t, c: i.entry.c.trim() }, i.entry.x ? { x: 1 } : {}));
   const files = [
     { name: 'vault.json', data: te.encode(JSON.stringify(vault, null, 2) + '\n') },
     { name: 'photos.enc', data: await Vault.encryptList(key, list) }

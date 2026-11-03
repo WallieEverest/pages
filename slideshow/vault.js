@@ -4,6 +4,7 @@
  * Format (all files live in the slideshow folder; tools/encrypt_photos.py uses the same format):
  *   vault.json   {"v":1, "kdf":"PBKDF2-SHA256", "iter":600000, "salt":<base64 16 bytes>, "check":<base64 blob>}
  *   photos.enc   blob of JSON list: [{"f":"photos/<random>.enc", "t":"image/jpeg", "c":"caption"}, ...]
+ *                "x":1 on an entry hides that photo from the slideshow (it stays in the vault)
  *   photos/*.enc blob of the image bytes
  *   blob       = 12-byte random IV || AES-256-GCM ciphertext (16-byte tag at the end)
  *   key        = PBKDF2-HMAC-SHA256(passphrase NFC-normalized UTF-8, salt, iter) -> 32 bytes
