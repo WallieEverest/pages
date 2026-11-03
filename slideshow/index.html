@@ -26,12 +26,8 @@
     object-fit: contain; opacity: 0; transition: opacity var(--fade, 1s) ease;
   }
   .slide.show { opacity: 1; }
-  body.cover .slide { object-fit: cover; }
-  body.kenburns .slide.show { animation: kb var(--dur, 6s) linear forwards; }
-  @keyframes kb { from { transform: scale(1); } to { transform: scale(1.08) translate(-1%, -1%); } }
 
   .ui { position: fixed; left: 0; right: 0; transition: opacity 0.3s; z-index: 2; }
-  body.hide-ui .ui { opacity: 0; pointer-events: none; }
   .bar-top {
     top: 0; padding: calc(env(safe-area-inset-top) + 10px) 16px 28px;
     background: linear-gradient(rgba(0,0,0,0.6), transparent);
@@ -42,7 +38,7 @@
     background: linear-gradient(transparent, rgba(0,0,0,0.7));
   }
 
-  /* Caption banner: outside the stage and the controls, so neither the slow zoom nor hiding the controls affects it */
+  /* Caption banner: outside the stage and the controls, so hiding the controls doesn't affect it */
   #banner {
     position: fixed; z-index: 1; left: var(--bl, 0px); width: var(--bw, 100%);
     bottom: max(var(--bb, 0px), env(safe-area-inset-bottom, 0px));
@@ -68,9 +64,10 @@
   .controls option { color: #fff; background: #222; }
   .controls button.on { background: rgba(255,255,255,0.85); color: #000; }
   .controls button:active { opacity: 0.6; }
-  #playBtn { min-width: 56px; font-size: 18px; }
+  #playBtn, #prevBtn, #nextBtn { min-width: 56px; font-size: 18px; }
+  #prevBtn, #nextBtn { font-size: 13px; letter-spacing: -0.2em; text-indent: -0.2em; }
   .ver { text-align: center; font-size: 11px; opacity: 0.45; margin-top: 8px; }
-  #speed, #nightSel { text-align: center; text-align-last: center; }
+  #speed { text-align: center; text-align-last: center; }
   .msg { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: #aaa; font-size: 16px; line-height: 1.5; }
   [hidden] { display: none !important; }
   body.loading .ui { display: none; }
@@ -105,10 +102,9 @@
   #nightClock { font-size: 44px; font-weight: 200; }
   #wakeBtn { font: inherit; font-size: 17px; color: #bbb; background: #161616; border: 1px solid #333; border-radius: 22px; padding: 10px 30px; }
   body.night .ui, body.night #banner { display: none; }
-  body.night .slide { animation-play-state: paused; }
 </style>
 </head>
-<body class="kenburns loading">
+<body class="loading">
   <div id="stage">
     <img class="slide" id="imgA" alt="">
     <img class="slide" id="imgB" alt="">
@@ -127,22 +123,15 @@
 
   <div class="ui bar-bot">
     <div class="controls">
-      <button id="prevBtn" aria-label="Previous">‹</button>
+      <button id="prevBtn" aria-label="Previous">◀︎◀︎</button>
       <button id="playBtn" aria-label="Play or pause">▶︎</button>
-      <button id="nextBtn" aria-label="Next">›</button>
+      <button id="nextBtn" aria-label="Next">▶︎▶︎</button>
       <select id="speed" aria-label="Seconds per photo">
         <option value="3">3s</option><option value="5">5s</option><option value="8">8s</option>
         <option value="15">15s</option><option value="30">30s</option><option value="60">60s</option>
       </select>
-      <button id="shuffleBtn" aria-label="Shuffle">⇄</button>
-      <button id="fitBtn" aria-label="Fill screen">⤢</button>
-      <button id="kbBtn" aria-label="Slow zoom">⊕</button>
       <button id="capBtn" aria-label="Caption size">Aa</button>
       <button id="sleepBtn" aria-label="Sleep until morning">Sleep</button>
-      <select id="nightSel" aria-label="Night hours (black screen)">
-        <option value="off">Night off</option><option value="22-06">22–06</option><option value="22-07">22–07</option>
-        <option value="23-07">23–07</option><option value="00-07">00–07</option><option value="00-08">00–08</option>
-      </select>
     </div>
     <div class="ver" data-name="Slideshow"></div>
   </div>
@@ -187,18 +176,17 @@ const now = () => new Date(Date.now() + clockOffset);
 const hm = d => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
 const CAP_SIZES = ['S', 'M', 'L', 'XL'];
-const NIGHTS = ['off', '22-06', '22-07', '23-07', '00-07', '00-08'];
-const prefs = Object.assign({ seconds: 5, shuffle: false, cover: false, kenburns: true, capSize: 'M', night: '23-07' }, store.get('prefs', {}));
+const prefs = Object.assign({ seconds: 5, capSize: 'M' }, store.get('prefs', {}));
+['cover', 'kenburns', 'shuffle', 'night'].forEach(k => delete prefs[k]);   // settings that were removed
 if (!CAP_SIZES.includes(prefs.capSize)) prefs.capSize = 'M';
-if (!NIGHTS.includes(prefs.night)) prefs.night = '23-07';
 const savePrefs = () => store.set('prefs', prefs);
 
 let photos = [];          // photos that play: {id, caption} plus src (plain) or entry (encrypted); id = src or entry.f
 let byId = new Map();
-let order = [];           // photo ids in play order (shuffled or not)
+let order = [];           // photo ids in play order
 let pos = 0;              // position in order
 let playing = false, timer = null, front = $('imgA'), back = $('imgB'), shownId = null;
-let wakeLock = null, uiTimer = null;
+let wakeLock = null;
 let vault = null, encKey = null;   // the vault.json in use and its key, when the photos are encrypted
 let listSig = null;       // the photo list as last loaded (hash), to spot changes
 let started = false;      // photos are showing (not the loading or passphrase screen)
@@ -254,24 +242,15 @@ async function readVault(live) {
   return r.json();
 }
 
-function buildOrder(keepCurrent) {
-  const cur = order[pos];
-  order = photos.map(p => p.id);
-  if (prefs.shuffle) {
-    for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
-  }
-  pos = keepCurrent && cur !== undefined ? Math.max(0, order.indexOf(cur)) : 0;
-}
 
 /* ---------- Resuming where it was (after an update, the daily fresh start or a restart) ---------- */
 const saveState = () => store.set('show', { order, pos, paused: !playing });
 function restoreOrder() {
   const s = store.get('show', null);
-  if (!s || !Array.isArray(s.order)) { buildOrder(false); return s; }
-  const cur = s.order[s.pos];
-  order = s.order.filter(id => byId.has(id));
-  order.push(...photos.map(p => p.id).filter(id => !order.includes(id)));
-  pos = order.indexOf(cur);
+  order = photos.map(p => p.id);
+  pos = 0;
+  if (!s || !Array.isArray(s.order)) return s;
+  pos = order.indexOf(s.order[s.pos]);
   if (pos < 0) pos = Math.min(Math.max(0, +s.pos || 0), order.length - 1);
   return s;
 }
@@ -414,17 +393,16 @@ function setCaption(text, img) {
   capFor = img;
   placeBanner();
 }
-// In Fit mode the banner sits on the photo's bottom edge (where it is drawn, ignoring the slow zoom);
-// in Fill mode the photo covers the screen, so it runs along the screen's bottom. While the controls
-// are showing it moves up above them.
+// The banner sits on the photo's bottom edge, across its width. While the controls are showing it
+// moves up above them.
 function placeBanner() {
   const vw = innerWidth, vh = innerHeight, st = document.body.style;
   let left = 0, width = vw, bottom = 0;
-  if (!prefs.cover && capFor && capFor.naturalWidth) {
+  if (capFor && capFor.naturalWidth) {
     const s = Math.min(vw / capFor.naturalWidth, vh / capFor.naturalHeight);
     width = capFor.naturalWidth * s; left = (vw - width) / 2; bottom = (vh - capFor.naturalHeight * s) / 2;
   }
-  if (!document.body.classList.contains('hide-ui')) bottom = Math.max(bottom, vh - document.querySelector('.controls').getBoundingClientRect().top + 8);
+  bottom = Math.max(bottom, vh - document.querySelector('.controls').getBoundingClientRect().top + 8);
   st.setProperty('--bl', left + 'px'); st.setProperty('--bw', width + 'px'); st.setProperty('--bb', bottom + 'px');
 }
 addEventListener('resize', placeBanner);
@@ -436,8 +414,8 @@ async function setPlaying(on) {
   playing = on;
   $('playBtn').textContent = on ? '❚❚' : '▶︎';
   $('status').textContent = on ? '' : 'Paused';
-  if (on) { schedule(); requestWake(); hideUiSoon(); }
-  else { clearTimeout(timer); releaseWake(); showUi(); }
+  if (on) { schedule(); requestWake(); }
+  else { clearTimeout(timer); releaseWake(); }
   saveState();
 }
 
@@ -456,49 +434,33 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function applyPrefs() {
-  document.body.classList.toggle('cover', prefs.cover);
-  document.body.classList.toggle('kenburns', prefs.kenburns);
-  document.body.style.setProperty('--dur', (prefs.seconds + 1) + 's');
   document.body.style.setProperty('--fade', Math.min(1, prefs.seconds / 4) + 's');
   $('speed').value = String(prefs.seconds);
-  $('nightSel').value = prefs.night;
-  $('shuffleBtn').classList.toggle('on', prefs.shuffle);
-  $('fitBtn').classList.toggle('on', prefs.cover);
-  $('kbBtn').classList.toggle('on', prefs.kenburns);
   CAP_SIZES.forEach(c => document.body.classList.toggle('cap-' + c, c === prefs.capSize));
   placeBanner();
 }
 
 /* ---------- Controls UI ---------- */
-function showUi() { document.body.classList.remove('hide-ui'); placeBanner(); hideUiSoon(); }
-function hideUi() { clearTimeout(uiTimer); document.body.classList.add('hide-ui'); placeBanner(); }
-function hideUiSoon() { clearTimeout(uiTimer); if (playing) uiTimer = setTimeout(hideUi, 3000); }
-function toggleUi() { document.body.classList.contains('hide-ui') ? showUi() : hideUi(); }
 
 $('playBtn').onclick = () => setPlaying(!playing);
-$('nextBtn').onclick = () => { next(); showUi(); };
-$('prevBtn').onclick = () => { prev(); showUi(); };
-$('speed').onchange = e => { prefs.seconds = +e.target.value; savePrefs(); applyPrefs(); if (playing) schedule(); showUi(); };
-$('shuffleBtn').onclick = () => { prefs.shuffle = !prefs.shuffle; savePrefs(); applyPrefs(); buildOrder(true); show(pos, true); showUi(); };
-$('fitBtn').onclick = () => { prefs.cover = !prefs.cover; savePrefs(); applyPrefs(); showUi(); };
-$('kbBtn').onclick = () => { prefs.kenburns = !prefs.kenburns; savePrefs(); applyPrefs(); showUi(); };
+$('nextBtn').onclick = () => next();
+$('prevBtn').onclick = () => prev();
+$('speed').onchange = e => { prefs.seconds = +e.target.value; savePrefs(); applyPrefs(); if (playing) schedule(); };
 let capBtnTimer = null;
 $('capBtn').onclick = () => {
-  prefs.capSize = CAP_SIZES[(CAP_SIZES.indexOf(prefs.capSize) + 1) % CAP_SIZES.length]; savePrefs(); applyPrefs(); showUi();
+  prefs.capSize = CAP_SIZES[(CAP_SIZES.indexOf(prefs.capSize) + 1) % CAP_SIZES.length]; savePrefs(); applyPrefs();
   $('capBtn').textContent = prefs.capSize;
   clearTimeout(capBtnTimer); capBtnTimer = setTimeout(() => { $('capBtn').textContent = 'Aa'; }, 1200);
 };
 document.querySelectorAll('.ui').forEach(el => el.addEventListener('touchstart', e => e.stopPropagation(), { passive: true }));
 
-/* ---------- Gestures: swipe to change, tap to show/hide controls ---------- */
-let sx = 0, sy = 0, st = 0;
-$('stage').addEventListener('touchstart', e => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; st = Date.now(); }, { passive: true });
+/* ---------- Gestures: swipe to change ---------- */
+let sx = 0, sy = 0;
+$('stage').addEventListener('touchstart', e => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; }, { passive: true });
 $('stage').addEventListener('touchend', e => {
   const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
   if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) { dx < 0 ? next() : prev(); }
-  else if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && Date.now() - st < 400) { toggleUi(); }
 });
-$('stage').addEventListener('click', e => { if (!('ontouchstart' in window)) toggleUi(); });
 document.addEventListener('keydown', e => {
   if (e.target.closest && e.target.closest('input, select, textarea') || !started || asleep) return;
   if (e.key === 'ArrowRight') next();
@@ -507,19 +469,10 @@ document.addEventListener('keydown', e => {
 });
 
 /* ---------- Night hours: black screen, Sleep and Wake ---------- */
-// prefs.night is 'off' or 'HH-HH' (night from the first hour to the second). A Sleep or Wake press
-// overrides the schedule until its next change, and is kept across reloads.
-function nightHours() {
-  if (prefs.night === 'off') return null;
-  const [start, end] = prefs.night.split('-').map(Number);
-  return { start, end };
-}
-function inNight(d) {
-  const n = nightHours();
-  if (!n) return false;
-  const h = d.getHours() + d.getMinutes() / 60;
-  return n.start > n.end ? (h >= n.start || h < n.end) : (h >= n.start && h < n.end);
-}
+// Night is from 8 PM to 8 AM. A Sleep or Wake press overrides the schedule until its next change,
+// and is kept across reloads.
+const NIGHT_START = 20, NIGHT_END = 8;
+function inNight(d) { const h = d.getHours(); return h >= NIGHT_START || h < NIGHT_END; }
 function nextAt(hour) {   // the next time the clock shows hour:00
   const d = now(), t = new Date(d);
   t.setHours(hour, 0, 0, 0);
@@ -538,24 +491,21 @@ function updateNight() {
   asleep = s;
   document.body.classList.toggle('night', s);
   $('night').hidden = !s;
-  if (s) { clearTimeout(timer); releaseWake(); hideUi(); return; }
+  if (s) { clearTimeout(timer); releaseWake(); return; }
   if (!started) return;
   if (pendingNewest && order.includes(pendingNewest)) { const id = pendingNewest; pendingNewest = null; show(order.indexOf(id)); }
   else if (playing) schedule();
   if (playing) requestWake();
 }
 $('sleepBtn').onclick = () => {
-  const n = nightHours();
-  store.set('nightOverride', { mode: 'sleep', until: n ? nextAt(n.end) : 8.64e15 });
+  store.set('nightOverride', { mode: 'sleep', until: nextAt(NIGHT_END) });
   updateNight();
 };
 $('wakeBtn').onclick = e => {
   e.stopPropagation();
-  const n = nightHours();
-  store.set('nightOverride', { mode: 'wake', until: n ? nextAt(n.start) : 0 });
+  store.set('nightOverride', { mode: 'wake', until: nextAt(NIGHT_START) });
   updateNight();
 };
-$('nightSel').onchange = e => { prefs.night = e.target.value; savePrefs(); store.set('nightOverride', null); updateNight(); showUi(); };
 setInterval(updateNight, 20000);
 
 /* ---------- Checking for changes every minute ---------- */
@@ -563,7 +513,7 @@ let swReg = null, checking = false, lastCheck = null, offlineSince = null, ready
 
 // A new list: drop removed and hidden photos, update captions, and jump to the newest added photo.
 function applyList(got) {
-  const before = new Set(photos.map(p => p.id));
+  const before = new Map(photos.map(p => [p.id, p.caption || '']));
   setPhotos(got.photos);
   tidyPhotoCache(got.all);
   for (const id of [...urlCache.keys()]) if (!byId.has(id)) dropUrl(id);
@@ -582,9 +532,11 @@ function applyList(got) {
     const c = byId.get(curId).caption || '';
     if ($('capText').textContent !== c) setCaption(c, capFor);
   }
+  const edited = photos.some(p => before.has(p.id) && before.get(p.id) !== (p.caption || ''));
   if (fresh.length) { if (asleep) pendingNewest = fresh[0]; else show(at + 1); }
   else if (curGone && !asleep) show(at + 1);
   else { updateCounter(); saveState(); }
+  if ((fresh.length || edited) && !playing) setPlaying(true);   // new photos or a caption edit: play, even if paused
 }
 
 // No photos to play (all removed or hidden): say so, and start again when some come back.
