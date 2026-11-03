@@ -94,7 +94,7 @@ If you had an older home-screen icon (for example one named *Weather*, or one ad
 ## Slideshow
 
 **Controls:** swipe left/right to change photos. The controls stay on screen.
-Buttons: previous, play/pause, next, seconds per photo, caption size (**Aa**: each tap steps through S, M, L and XL), and **Sleep** (until morning). Photos play in the order of the list in the Manager.
+Buttons: previous, play/pause, next, seconds per photo (5, 10 or 20), caption size (**Aa**: each tap steps through S, M, L and XL), and **Sleep** (until morning). Photos play in the order of the list in the Manager.
 Photos always fill the screen's height or width without being cropped.
 **Captions** stay on screen in a banner over the bottom of the photo, above the controls.
 Settings are remembered on each device. The screen stays on while playing (iOS 16.4 and later).
@@ -137,7 +137,7 @@ GitHub Pages sites are public, so the slideshow can encrypt your photos. Each ph
 4. Tap **Choose photos…** and pick your photos. Leave *Resize* on: it keeps loading fast and strips GPS location and other hidden data. Edit captions if you like (photos named like `IMG_1234` start with no caption).
 5. Tap **Upload to GitHub…**, check the list of changes, and tap **Upload**.
 6. Delete any plain photos left in `slideshow/photos/` (the `.enc` files stay). Keep `slideshow/photos.json`: once `vault.json` exists it is ignored, and it is only used if you go back to unencrypted photos.
-7. Open the slideshow and enter the passphrase. With **Remember on this device** ticked, it isn't asked again. 🔒 (top right) locks it and forgets the passphrase on that device. The Manager has the same **Remember on this device** option. In the same browser (on a computer, or both in Safari), the two apps share the remembered passphrase: remembering it in either one unlocks both, and locking either one locks both. On iPhone and iPad, each full-screen home-screen app keeps its own storage, separate from Safari. The Slideshow icon and the Manager (in Safari) each ask for the passphrase once, and the GitHub token lives only in the Safari Manager.
+7. Open the slideshow and enter the passphrase. With **Remember on this device** ticked, it isn't asked again. 🔒 (top right) locks it: after you confirm, it forgets the passphrase on that device. The Manager has the same **Remember on this device** option. In the same browser (on a computer, or both in Safari), the two apps share the remembered passphrase: remembering it in either one unlocks both, and locking either one locks both. On iPhone and iPad, each full-screen home-screen app keeps its own storage, separate from Safari. The Slideshow icon and the Manager (in Safari) each ask for the passphrase once, and the GitHub token lives only in the Safari Manager.
 
 **Adding, removing or re-captioning later**: open the Manager again, make the changes, and tap **Upload to GitHub…**. It saves everything to GitHub as one update: new photos, the new list, and deleting removed photo files. The slideshow updates about a minute later.
 
@@ -203,7 +203,7 @@ Not using the action? Edit `photos.json` by hand; plain strings work too: `["pho
 
 ## Updating the apps
 
-iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v9`, the slideshow at `slideshow-v9` and the Manager at `manager-v9`; increase the number). The number shows in each app, so you can check a device has the latest. The launcher (`index.html`) has no service worker; bump `VERSION` in its script (`my-apps-v2`) when you change it. `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
+iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v9`, the slideshow at `slideshow-v10` and the Manager at `manager-v10`; increase the number). The number shows in each app, so you can check a device has the latest. The launcher (`index.html`) has no service worker; bump `VERSION` in its script (`my-apps-v2`) when you change it. `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
 
 ## Limitations (iOS web apps)
 

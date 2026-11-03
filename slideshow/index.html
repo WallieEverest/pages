@@ -65,7 +65,7 @@
   .controls button.on { background: rgba(255,255,255,0.85); color: #000; }
   .controls button:active { opacity: 0.6; }
   #playBtn, #prevBtn, #nextBtn { min-width: 56px; font-size: 18px; }
-  #prevBtn, #nextBtn { font-size: 13px; letter-spacing: -0.2em; text-indent: -0.2em; }
+  #prevBtn, #nextBtn { font-size: 20px; letter-spacing: -0.2em; text-indent: -0.2em; }
   .ver { text-align: center; font-size: 11px; opacity: 0.45; margin-top: 8px; }
   #speed { text-align: center; text-align-last: center; }
   .msg { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: #aaa; font-size: 16px; line-height: 1.5; }
@@ -92,6 +92,14 @@
   .unlock button { font: inherit; font-size: 17px; font-weight: 600; color: #000; background: #fff; border: 0; border-radius: 12px; padding: 12px; }
   .unlock button:disabled { opacity: 0.5; }
   #unlockErr { min-height: 22px; color: #ff9f8a; font-size: 15px; }
+
+  /* Lock: confirm before forgetting the passphrase */
+  .ask { margin: auto; width: min(320px, calc(100% - 32px)); border: 0; border-radius: 16px; padding: 20px; background: #1c1c1e; color: #ddd; text-align: center; font-size: 15px; line-height: 1.4; }
+  .ask::backdrop { background: rgba(0,0,0,0.6); }
+  .ask h2 { font-size: 18px; color: #fff; margin-bottom: 8px; }
+  .ask .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
+  .ask button { font: inherit; font-size: 16px; font-weight: 600; border: 0; border-radius: 12px; padding: 12px; background: #3a3a3c; color: #fff; }
+  .ask button[value=yes] { background: #ff453a; }
   #chk { font-size: 12px; opacity: 0.7; }
 
   /* Night: a black screen with a dim clock and a Wake button */
@@ -127,8 +135,7 @@
       <button id="playBtn" aria-label="Play or pause">▶︎</button>
       <button id="nextBtn" aria-label="Next">▶︎▶︎</button>
       <select id="speed" aria-label="Seconds per photo">
-        <option value="3">3s</option><option value="5">5s</option><option value="8">8s</option>
-        <option value="15">15s</option><option value="30">30s</option><option value="60">60s</option>
+        <option value="5">5s</option><option value="10">10s</option><option value="20">20s</option>
       </select>
       <button id="capBtn" aria-label="Caption size">Aa</button>
       <button id="sleepBtn" aria-label="Sleep until morning">Sleep</button>
@@ -142,6 +149,14 @@
     <div id="nightClock"></div>
     <button id="wakeBtn" type="button">Wake</button>
   </div>
+
+  <dialog class="ask" id="lockAsk">
+    <form method="dialog">
+      <h2>Forget the passphrase?</h2>
+      <p>The slideshow stops and asks for the passphrase again on this device.</p>
+      <div class="two"><button value="no">Cancel</button><button value="yes">Forget</button></div>
+    </form>
+  </dialog>
 
   <form class="unlock" id="unlock" autocomplete="on" hidden>
     <div class="big">🔒</div>
@@ -178,6 +193,8 @@ const hm = d => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 const CAP_SIZES = ['S', 'M', 'L', 'XL'];
 const prefs = Object.assign({ seconds: 5, capSize: 'M' }, store.get('prefs', {}));
 ['cover', 'kenburns', 'shuffle', 'night'].forEach(k => delete prefs[k]);   // settings that were removed
+const SECONDS = [5, 10, 20];
+if (!SECONDS.includes(prefs.seconds)) prefs.seconds = 5;
 if (!CAP_SIZES.includes(prefs.capSize)) prefs.capSize = 'M';
 const savePrefs = () => store.set('prefs', prefs);
 
@@ -282,7 +299,8 @@ function askPassphrase(v, changed) {
   });
 }
 
-$('lockBtn').onclick = async () => { await Vault.forgetKey(); location.reload(); };
+$('lockBtn').onclick = () => { $('lockAsk').returnValue = ''; $('lockAsk').showModal(); };
+$('lockAsk').onclose = async () => { if ($('lockAsk').returnValue === 'yes') { await Vault.forgetKey(); location.reload(); } };
 
 // The Manager made a new vault (new passphrase): stop, ask for the new one, then start again with the new list.
 async function passphraseChanged(v) {
