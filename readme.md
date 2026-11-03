@@ -79,7 +79,7 @@ If you had an older home-screen icon (for example one named *Weather*, or one ad
 
 **Controls**
 
-- **ZIP code** (top left): type a 5-digit US ZIP code, such as *32931*, and tap Search. Enter a new one when you move to a different area.
+- **ZIP code** (top left): type a 5-digit US ZIP code, such as *32931*. It searches as soon as you type the fifth digit (or tap **Go**). Enter a new one when you move to a different area.
 - **°F/°C** changes temperature units. Wind is always in knots.
 - Tap the **Marine Forecast** heading to open the full forecast on weather.gov.
 
@@ -202,7 +202,7 @@ Not using the action? Edit `photos.json` by hand; plain strings work too: `["pho
 
 ## Updating the apps
 
-iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v10`, the slideshow at `slideshow-v11` and the Manager at `manager-v10`; increase the number). The number shows in each app, so you can check a device has the latest. The launcher (`index.html`) has no service worker; bump `VERSION` in its script (`my-apps-v2`) when you change it. `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
+iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v11`, the slideshow at `slideshow-v11` and the Manager at `manager-v10`; increase the number). The number shows in each app, so you can check a device has the latest. The launcher (`index.html`) has no service worker; bump `VERSION` in its script (`my-apps-v2`) when you change it. `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
 
 ## Limitations (iOS web apps)
 
