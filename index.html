@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>My Apps</title>
+<!-- Opens in Safari (not full screen). Boating and Slideshow are the full-screen apps. -->
+<meta name="apple-mobile-web-app-title" content="My Apps">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -19,20 +24,39 @@
   .app span { font-size: 14px; opacity: 0.6; }
   .how { background: #fff; border-radius: 16px; padding: 14px 16px; font-size: 15px; line-height: 1.5; color: #555; margin-top: 20px; }
   .how ol { padding-left: 20px; }
+  .how li + li { margin-top: 4px; }
+  .app i { font-style: normal; font-size: 12px; opacity: 0.5; }
+  .foot { text-align: center; font-size: 12px; opacity: 0.5; margin-top: 16px; }
 </style>
 </head>
 <body>
   <h1>My Apps</h1>
-  <a class="app" href="weather/"><img src="weather/icons/icon-180.png" alt=""><div><b>Boating</b><span>Local wind, weather and NWS marine forecast</span></div></a>
-  <a class="app" href="slideshow/"><img src="slideshow/icons/icon-180.png" alt=""><div><b>Slideshow</b><span>Photo viewer for this site's photos</span></div></a>
-  <a class="app" href="manager/"><img src="manager/icons/icon-180.png" alt=""><div><b>Manager</b><span>Add, caption and encrypt slideshow photos</span></div></a>
+  <a class="app" href="weather/"><img src="weather/icons/icon-180.png" alt=""><div><b>Boating <i data-sw="weather/sw.js"></i></b><span>Local wind, weather and NWS marine forecast</span></div></a>
+  <a class="app" href="slideshow/"><img src="slideshow/icons/icon-180.png" alt=""><div><b>Slideshow <i data-sw="slideshow/sw.js"></i></b><span>Viewer for this site's photos</span></div></a>
+  <a class="app" href="manager/"><img src="manager/icons/icon-180.png" alt=""><div><b>Manager <i data-sw="manager/sw.js"></i></b><span>Add, caption and encrypt slideshow photos</span></div></a>
   <div class="how">
-    <b>Install on iPhone</b>
+    <b>Install on iPhone or iPad</b>
     <ol>
-      <li>Open an app above in Safari.</li>
+      <li>Open an app above (or this page) in Safari.</li>
       <li>Tap <b>Share</b>, then <b>Add to Home Screen</b>.</li>
-      <li>Keep <b>Open as Web App</b> on and tap <b>Add</b>.</li>
+      <li><b>Boating</b> and <b>Slideshow</b>: keep <b>Open as Web App</b> on (they open full screen).
+        <b>Manager</b> and <b>My Apps</b>: turn it off (they open in Safari). Tap <b>Add</b>.</li>
+      <li>An icon added before keeps its old mode: delete it and add it again.</li>
     </ol>
   </div>
+  <p class="foot" id="ver"></p>
+<script>
+// This page has no service worker, so its version is kept here: bump it when the launcher changes.
+const VERSION = 'my-apps-v1';
+document.getElementById('ver').textContent = 'My Apps v' + VERSION.split('-v').pop();
+document.getElementById('ver').title = VERSION;
+// Each app's deployed version, from VERSION in its sw.js.
+document.querySelectorAll('[data-sw]').forEach(el => {
+  fetch(el.dataset.sw, { cache: 'no-cache' }).then(r => r.text()).then(t => {
+    const m = t.match(/VERSION\s*=\s*'([^']+?)-v(\d+)'/);
+    if (m) { el.textContent = 'v' + m[2]; el.title = m[1] + '-v' + m[2]; }
+  }).catch(() => {});
+});
+</script>
 </body>
 </html>

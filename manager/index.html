@@ -5,9 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>Manager</title>
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<!-- Opens in Safari (not full screen): GitHub links and downloads work there, and it keeps one copy of the token. -->
 <meta name="apple-mobile-web-app-title" content="Manager">
 <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -72,6 +70,7 @@
   .done li + li { margin-top: 6px; }
   code { font-size: 13px; background: var(--input); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
   .foot { text-align: center; font-size: 14px; color: var(--muted); margin-top: 8px; }
+  .ver { font-size: 12px; color: var(--muted); }
   .passrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
   .show { font: inherit; font-size: 15px; border: 0; border-radius: 10px; padding: 0 14px; background: var(--input); color: var(--text); cursor: pointer; }
   .note.warn { color: var(--danger); }
@@ -97,10 +96,11 @@
       <input id="pass1" type="password" placeholder="Passphrase" autocomplete="current-password" required>
       <input id="pass2" type="password" placeholder="Repeat passphrase" autocomplete="new-password" hidden>
       <label class="check"><input type="checkbox" id="remember" checked>
-        <span>Remember on this device (the slideshow uses it too)</span></label>
+        <span>Remember on this device (the slideshow in this browser uses it too)</span></label>
       <button class="btn" id="lockSubmit" type="submit">Unlock</button>
       <div class="err" id="lockErr" role="alert"></div>
     </form>
+    <p class="foot ver" data-name="Manager"></p>
   </section>
 
   <div id="main" hidden>
@@ -159,7 +159,7 @@
 
     <section class="card stack done" id="after" hidden></section>
 
-    <p class="foot"><a href="../slideshow/">Open slideshow</a> · <a href="#" id="lockLink" title="Also locks the slideshow on this device">Lock</a></p>
+    <p class="foot"><a href="../slideshow/">Open slideshow</a> · <a href="#" id="lockLink" title="Forgets the passphrase and GitHub token in this browser (the slideshow here too)">Lock</a> · <span class="ver" data-name="Manager"></span></p>
   </div>
 
 <script src="../slideshow/vault.js"></script>
@@ -669,6 +669,12 @@ $('upGo').onclick = async () => {
     fail(e.message + (e.conflict ? '' : ' Nothing was uploaded.'));
   } finally { busy = false; }
 };
+
+// Version number, from VERSION in sw.js (the one place it's changed).
+fetch('sw.js', { cache: 'no-cache' }).then(r => r.text()).then(t => {
+  const m = t.match(/VERSION\s*=\s*'([^']+?)-v(\d+)'/);
+  if (m) document.querySelectorAll('.ver').forEach(e => { e.textContent = e.dataset.name + ' v' + m[2]; e.title = m[1] + '-v' + m[2]; });
+}).catch(() => {});
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 </script>
