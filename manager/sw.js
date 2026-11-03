@@ -1,6 +1,6 @@
 // Shell, vault and photo list: network first (so changes show up), cache fallback offline.
 // Encrypted photos (for thumbnails): cache first, sharing the slideshow's photo cache so nothing is stored twice.
-const VERSION = 'manager-v7';
+const VERSION = 'manager-v8';
 const PHOTOS = 'slideshow-photos';
 const SHELL = ['./', 'index.html', 'github.js', 'manifest.json', 'icons/icon-180.png', 'icons/icon-192.png', '../slideshow/vault.js'];
 
@@ -30,8 +30,10 @@ self.addEventListener('fetch', e => {
     return;
   }
 
+  // no-cache: check with the server (a cheap 304 when unchanged) instead of taking the browser's copy, which GitHub Pages
+  // lets it keep for 10 minutes: that served an old page while the version label (fetched fresh) showed the new one.
   e.respondWith(
-    fetch(req)
+    fetch(req.url, { cache: 'no-cache' })
       .then(r => {
         if (r.ok) { const copy = r.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
         return r;
