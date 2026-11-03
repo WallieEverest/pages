@@ -1,0 +1,2 @@
+# Encrypted photos and the photo list are binary: never convert line endings
+*.enc binary
