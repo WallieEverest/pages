@@ -96,9 +96,14 @@
   }
 
   // File bytes at a commit (default: the branch), or null if it doesn't exist.
+  // Only the blob API gives the exact bytes: the contents API (raw or base64) guesses that small
+  // binary files without zero bytes, such as photos.enc, are text and converts them to UTF-8.
   async function readFile(path, ref) {
-    const r = await api('/contents/' + path + '?ref=' + (ref || BRANCH), { allow404: true, headers: { Accept: 'application/vnd.github.raw' } });
-    return r ? new Uint8Array(await r.arrayBuffer()) : null;
+    const r = await api('/contents/' + path + '?ref=' + (ref || BRANCH), { allow404: true });
+    const info = r ? await r.json() : null;
+    if (!info || Array.isArray(info) || !info.sha) return null;
+    const blob = await json('/git/blobs/' + info.sha);
+    return Uint8Array.from(atob(blob.content.replace(/\s/g, '')), c => c.charCodeAt(0));
   }
 
   async function listDir(dir, ref) {
