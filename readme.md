@@ -94,9 +94,35 @@ If you had an older home-screen icon (for example one named *Weather*, or one ad
 ## Slideshow
 
 **Controls:** swipe left/right to change photos, tap to show or hide controls. Controls hide themselves after 3 seconds while playing.
-Buttons: previous, play/pause, next, seconds per photo, shuffle (⇄), fill screen (⤢), slow zoom, and caption size (**Aa**: each tap steps through S, M, L and XL).
+Buttons: previous, play/pause, next, seconds per photo, shuffle (⇄), fill screen (⤢), slow zoom, caption size (**Aa**: each tap steps through S, M, L and XL), **☾** (sleep until morning) and the **Night** hours menu.
 **Captions** stay on screen in a banner over the bottom of the photo, whether the controls are showing or not. While the controls are showing, the banner moves up above them.
-Settings are remembered. The screen stays on while playing (iOS 16.4 and later).
+Settings are remembered on each device. The screen stays on while playing (iOS 16.4 and later).
+
+**Keeps itself up to date:** while it's on screen, the slideshow checks for changes every minute.
+- **Photos added in the Manager:** it jumps straight to the newest one.
+- **Photos removed or unticked:** they drop out.
+- **Caption edits:** they show at once.
+- **New app version:** it reloads between two photos and carries on from the same photo.
+- After an upload from the Manager, expect the change on screen within about 2 to 3 minutes.
+- The top bar (when the controls are showing) says when it last checked, for example "Checked 9:41 · 24 photos", or "Offline since …" when it can't reach the site. It keeps playing either way.
+- If the passphrase is changed in the Manager, the slideshow stops and asks for the new one.
+
+**Night hours:** the **Night** menu sets when the screen goes black (default 23–07; choose **Night off** to run around the clock). It pauses at night and carries on in the morning from where it was. Photos uploaded overnight come first.
+- **☾** blacks the screen now, until the morning.
+- At night, tap the black screen to see the time and a **Wake** button. Wake keeps it running until the next night.
+- iOS doesn't let a web page switch the screen off, so a "black" screen is still lit, just showing black.
+
+### iPad as a photo kiosk
+
+1. **Settings → Display & Brightness → Auto-Lock → Never.**
+2. Keep the iPad on its charger. If it offers **Settings → Battery → Charging Optimization**, choose **80% Limit** to protect the battery.
+3. Stop pop-ups over the photos: turn on a Focus (for example **Do Not Disturb**, always on), or switch notifications off. Optionally turn off **Settings → General → Software Update → Automatic Updates → Install**, so it doesn't restart overnight.
+4. In Safari, open `https://wallieeverest.github.io/pages/slideshow/`, tap **Share → Add to Home Screen**, keep **Open as Web App** on. Open the icon, enter the passphrase with **Remember on this device** ticked, and set the speed, shuffle, fill, slow zoom, caption size and night hours.
+5. **Guided Access** keeps the iPad in the slideshow:
+   - Turn it on in **Settings → Accessibility → Guided Access**, set a passcode, and set **Display Auto-Lock** to **Never**.
+   - Open the slideshow and triple-click the top (or Home) button to start Guided Access. Triple-click and enter the passcode to leave.
+   - After the iPad restarts, open the slideshow and start Guided Access again.
+6. Use the Manager on an iPhone (in Safari, connected to GitHub) to add, remove, caption and tick photos. The iPad picks the changes up by itself.
 
 ### Private photos (encrypted), recommended
 
@@ -126,7 +152,7 @@ The Manager uploads straight to GitHub using a token that can only change this o
 4. **Permissions → Repository permissions → Contents:** **Read and write**. GitHub then adds **Metadata: Read-only** by itself. It's required (it lets the token see the repo's basic details) and can't be removed: leave it. Leave everything else as it is.
 5. Tap **Generate token**, copy it (it starts with `github_pat_`; GitHub shows it only once), paste it into the Manager and tap **Connect**.
 
-After that, **Upload to GitHub…** under the list of changes is enabled. It shows what will change. Tap **Upload** and the Manager saves everything to GitHub as one update. Until GitHub is connected, the Manager can edit but not save.
+After that, **Upload to GitHub…** under the list of changes is enabled. It shows what will change. Tap **Upload** and the Manager saves everything to GitHub as one update. A slideshow that's running picks it up within about 2 to 3 minutes. Until GitHub is connected, the Manager can edit but not save.
 
 - If the photos were changed from another device after you opened the Manager, the upload stops and nothing is changed. Reload and make your edits again.
 - When the token expires or is revoked, the Manager says so: create a new one and connect again. **Disconnect** removes it from the device.
@@ -176,7 +202,7 @@ Not using the action? Edit `photos.json` by hand; plain strings work too: `["pho
 
 ## Updating the apps
 
-iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v9`, the slideshow at `slideshow-v6` and the Manager at `manager-v8`; increase the number). The number shows in each app, so you can check a device has the latest. The launcher (`index.html`) has no service worker; bump `VERSION` in its script (`my-apps-v2`) when you change it. `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
+iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v9`, the slideshow at `slideshow-v7` and the Manager at `manager-v9`; increase the number). The number shows in each app, so you can check a device has the latest. The launcher (`index.html`) has no service worker; bump `VERSION` in its script (`my-apps-v2`) when you change it. `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
 
 ## Limitations (iOS web apps)
 
