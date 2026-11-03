@@ -66,6 +66,7 @@
   .controls button.on { background: rgba(255,255,255,0.85); color: #000; }
   .controls button:active { opacity: 0.6; }
   #playBtn { min-width: 56px; font-size: 18px; }
+  .ver { text-align: center; font-size: 11px; opacity: 0.45; margin-top: 8px; }
   #speed { text-align: center; text-align-last: center; }
   .msg { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: #aaa; font-size: 16px; line-height: 1.5; }
   [hidden] { display: none !important; }
@@ -123,6 +124,7 @@
       <button id="kbBtn" aria-label="Slow zoom">⊕</button>
       <button id="capBtn" aria-label="Caption size">Aa</button>
     </div>
+    <div class="ver" data-name="Slideshow"></div>
   </div>
 
   <div class="msg" id="msg">Loading photos…</div>
@@ -135,6 +137,7 @@
     <label><input type="checkbox" id="remember" checked> Remember on this device</label>
     <button type="submit">Unlock</button>
     <div id="unlockErr" role="alert"></div>
+    <div class="ver" data-name="Slideshow"></div>
   </form>
 
 <script src="vault.js"></script>
@@ -398,6 +401,12 @@ document.addEventListener('keydown', e => {
     $('msg').textContent = e.message;
   }
 })();
+
+// Version number, from VERSION in sw.js (the one place it's changed).
+fetch('sw.js', { cache: 'no-cache' }).then(r => r.text()).then(t => {
+  const m = t.match(/VERSION\s*=\s*'([^']+?)-v(\d+)'/);
+  if (m) document.querySelectorAll('.ver').forEach(e => { e.textContent = e.dataset.name + ' v' + m[2]; e.title = m[1] + '-v' + m[2]; });
+}).catch(() => {});
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 </script>

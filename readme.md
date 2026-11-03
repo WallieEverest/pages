@@ -7,7 +7,7 @@ Home-screen apps for iPhone, hosted free on GitHub Pages at **https://wallieever
 - **Manager**: adds, captions and encrypts photos for the slideshow.
 
 ```
-index.html                      launcher page linking the apps
+index.html                      launcher page ("My Apps") linking the apps; manifest.json, icons/
 weather/                        Boating app (Open-Meteo + National Weather Service data)
 slideshow/                      photo slideshow
   vault.js                      encryption code shared by the slideshow and manager
@@ -19,7 +19,9 @@ tools/encrypt_photos.py         command-line alternative to the Manager
 .github/workflows/update-photos.yml
 ```
 
-Each app has its own `manifest.json`, service worker and icon, so each becomes a separate icon on the home screen.
+Each app has its own `manifest.json`, service worker and icon, so each becomes a separate icon on the home screen. **Boating** and **Slideshow** open full screen. **My Apps** and the **Manager** open in Safari, as normal pages.
+
+Every app shows its version number: Boating at the bottom of the page, the Slideshow under its control buttons (and on the passphrase screen), the Manager in its footer, and My Apps in its footer and on each app's card.
 
 ## 1. Publish to GitHub Pages
 
@@ -49,7 +51,14 @@ Type addresses exactly as shown: they are case-sensitive (`pages`, `weather`, `s
 **Manager** (optional: only needed on the device you add photos from)
 
 1. In **Safari**, open `https://wallieeverest.github.io/pages/manager/`.
-2. Tap **Share → Add to Home Screen** (the name **Manager** is filled in for you), keep **Open as Web App** on, tap **Add**.
+2. Tap **Share → Add to Home Screen** (the name **Manager** is filled in for you), turn **Open as Web App** **off**, and tap **Add**. The icon then opens the Manager in Safari, where GitHub links and downloads work as usual.
+
+**My Apps** (optional: the launcher page)
+
+1. In **Safari**, open `https://wallieeverest.github.io/pages/`.
+2. Tap **Share → Add to Home Screen**, turn **Open as Web App** **off**, and tap **Add**.
+
+An icon keeps the mode it was added with. To change it (for example a Manager icon added full screen before November 2026), delete the icon and add it again.
 
 Open each app once while online so it can save itself for offline use.
 
@@ -101,7 +110,7 @@ GitHub Pages sites are public, so the slideshow can encrypt your photos. Each ph
 4. Tap **Download update (.zip)**.
 5. Unzip it. On GitHub, open the `slideshow` folder → **Add file → Upload files**, drag in everything from the zip (`vault.json`, `photos.enc` and the `photos` folder), and commit.
 6. Delete any plain photos left in `slideshow/photos/` (the `.enc` files stay). Keep `slideshow/photos.json`: once `vault.json` exists it is ignored, and it is only used if you go back to unencrypted photos.
-7. Open the slideshow and enter the passphrase. With **Remember on this device** ticked, it isn't asked again. 🔒 (top right, when controls are showing) locks it and forgets the passphrase on that device. The Manager has the same **Remember on this device** option. The two apps share the remembered passphrase: remembering it in either one unlocks both on that device, and locking either one locks both.
+7. Open the slideshow and enter the passphrase. With **Remember on this device** ticked, it isn't asked again. 🔒 (top right, when controls are showing) locks it and forgets the passphrase on that device. The Manager has the same **Remember on this device** option. In the same browser (on a computer, or both in Safari), the two apps share the remembered passphrase: remembering it in either one unlocks both, and locking either one locks both. On iPhone and iPad, each full-screen home-screen app keeps its own storage, separate from Safari. The Slideshow icon and the Manager (in Safari) each ask for the passphrase once, and the GitHub token lives only in the Safari Manager.
 
 **Adding, removing or re-captioning later**: open the Manager again, make the changes, and upload them. The simplest way is **Upload to GitHub** (below), straight from the Manager. Without it, download and upload by hand:
 - **Only captions or ticks changed:** the button says **Download photos.enc**. It saves that one file. Upload it on GitHub into `slideshow/` (**Add file → Upload files**), replacing the old one. The Manager shows a direct link to the upload page. Nothing needs unzipping, so this works well on an iPhone. If Files saved it as `photos (1).enc`, rename it to `photos.enc` first.
@@ -148,7 +157,7 @@ The script and the Manager use the same format and passphrase, so you can mix th
 - **Git history:** if real photos were ever committed unencrypted, they stay in the repo's history even after you delete them. If that happened, the simplest fix is to delete the repository, create a new one, and upload only the encrypted files.
 - With **Remember on this device** ticked, the device stores a non-exportable browser key and the passphrase itself, so the Manager can show it. Anyone who can open the apps on your unlocked device can see the passphrase there. Leave the box unticked on shared devices, or use 🔒 / **Lock** to clear it.
 - **Changing the passphrase:** in the Manager, the **Passphrase** box shows the current one (tap **Show**). Type a new one, repeat it, and tap **Upload to GitHub…** (or **Download update**). Every photo is re-encrypted with new file names. Upload to GitHub does everything, including deleting the old files. With the zip, upload it as usual and delete the old files it lists. Other devices ask for the new passphrase once. Keep the old one until the upload is done: the site uses it until then.
-- **GitHub token** (only if you connect one): it's stored on the device encrypted with the photo key, so it can't be read without the passphrase, and **Lock** deletes it. It can only change files in this one repository: it can't touch your account or other repos. If a device is lost, delete the token on github.com (Settings → Developer settings → Fine-grained tokens). Someone using it could change the website, but your photos stay encrypted.
+- **GitHub token** (only if you connect one): it's stored on the device encrypted with the photo key, so it can't be read without the passphrase, and **Lock** deletes it. It's kept by the browser it was connected in (on iPhone/iPad: Safari, where the Manager runs). It can only change files in this one repository: it can't touch your account or other repos. If a device is lost, delete the token on github.com (Settings → Developer settings → Fine-grained tokens). Someone using it could change the website, but your photos stay encrypted.
 
 **Technical details:** the key is derived with PBKDF2-HMAC-SHA256 (600,000 iterations, random 16-byte salt in `vault.json`). Each file is a 12-byte random IV followed by AES-256-GCM ciphertext and tag. Everything uses the browser's built-in Web Crypto; there are no third-party libraries.
 
@@ -171,7 +180,7 @@ Not using the action? Edit `photos.json` by hand; plain strings work too: `["pho
 
 ## Updating the apps
 
-iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v7`, the slideshow at `slideshow-v4` and the Manager at `manager-v5`; increase the number). `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
+iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v8`, the slideshow at `slideshow-v5` and the Manager at `manager-v6`; increase the number). The number shows in each app, so you can check a device has the latest. The launcher (`index.html`) has no service worker; bump `VERSION` in its script (`my-apps-v1`) when you change it. `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
 
 ## Limitations (iOS web apps)
 

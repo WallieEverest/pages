@@ -125,7 +125,7 @@
 
   <main id="app"><div class="msg">Loading…</div></main>
 
-  <div class="credit">Data: <a href="https://open-meteo.com/">Open-Meteo.com</a> · <a href="https://www.weather.gov/marine/">National Weather Service</a></div>
+  <div class="credit">Data: <a href="https://open-meteo.com/">Open-Meteo.com</a> · <a href="https://www.weather.gov/marine/">National Weather Service</a> · <span class="ver" data-name="Boating"></span></div>
 
 <script>
 'use strict';
@@ -594,6 +594,11 @@ $('unitBtn').addEventListener('click', () => {
 if (place) load();
 else useMyLocation();
 
+// Version number, from VERSION in sw.js (the one place it's changed).
+fetch('sw.js', { cache: 'no-cache' }).then(r => r.text()).then(t => {
+  const m = t.match(/VERSION\s*=\s*'([^']+?)-v(\d+)'/);
+  if (m) document.querySelectorAll('.ver').forEach(e => { e.textContent = e.dataset.name + ' v' + m[2]; e.title = m[1] + '-v' + m[2]; });
+}).catch(() => {});
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 </script>
 </body>

@@ -1,7 +1,7 @@
 // Shell, photo list and vault: network first (so new photos show up), cache fallback offline.
 // Photos (plain or encrypted): cache first, saved the first time each one is viewed, so the slideshow plays offline.
 // Encrypted photos stay encrypted in the cache; they are only decrypted in memory for display.
-const VERSION = 'slideshow-v4';
+const VERSION = 'slideshow-v5';
 const PHOTOS = 'slideshow-photos';
 const SHELL = ['./', 'index.html', 'vault.js', 'manifest.json', 'icons/icon-180.png', 'icons/icon-192.png'];
 
