@@ -67,7 +67,7 @@
   .controls button:active { opacity: 0.6; }
   #playBtn { min-width: 56px; font-size: 18px; }
   .ver { text-align: center; font-size: 11px; opacity: 0.45; margin-top: 8px; }
-  #speed { text-align: center; text-align-last: center; }
+  #speed, #nightSel { text-align: center; text-align-last: center; }
   .msg { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: #aaa; font-size: 16px; line-height: 1.5; }
   [hidden] { display: none !important; }
   body.loading .ui { display: none; }
@@ -77,7 +77,7 @@
 
   /* Passphrase screen */
   .unlock {
-    position: fixed; inset: 0; z-index: 5; display: flex; flex-direction: column; justify-content: center; align-items: stretch;
+    position: fixed; inset: 0; z-index: 5; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: stretch;
     gap: 14px; padding: 24px max(24px, calc(50% - 170px)); text-align: center; color: #ddd; font-size: 16px; line-height: 1.4;
     -webkit-user-select: text; user-select: text; touch-action: manipulation;
   }
@@ -92,6 +92,19 @@
   .unlock button { font: inherit; font-size: 17px; font-weight: 600; color: #000; background: #fff; border: 0; border-radius: 12px; padding: 12px; }
   .unlock button:disabled { opacity: 0.5; }
   #unlockErr { min-height: 22px; color: #ff9f8a; font-size: 15px; }
+  #chk { font-size: 12px; opacity: 0.7; }
+
+  /* Night: a black screen; a tap shows the clock and a Wake button for 10 seconds */
+  #night {
+    position: fixed; inset: 0; z-index: 4; background: #000; color: #666; cursor: pointer;
+    display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px;
+  }
+  #night > * { opacity: 0; transition: opacity 0.5s; pointer-events: none; }
+  #night.peek > * { opacity: 1; pointer-events: auto; }
+  #nightClock { font-size: 44px; font-weight: 200; }
+  #wakeBtn { font: inherit; font-size: 17px; color: #bbb; background: #161616; border: 1px solid #333; border-radius: 22px; padding: 10px 30px; }
+  body.night .ui, body.night #banner { display: none; }
+  body.night .slide { animation-play-state: paused; }
 </style>
 </head>
 <body class="kenburns loading">
@@ -105,6 +118,7 @@
   <div class="ui bar-top">
     <span id="counter"></span>
     <span class="top-right">
+      <span id="chk"></span>
       <span id="status"></span>
       <button id="lockBtn" aria-label="Lock and forget passphrase" hidden>🔒</button>
     </span>
@@ -123,15 +137,25 @@
       <button id="fitBtn" aria-label="Fill screen">⤢</button>
       <button id="kbBtn" aria-label="Slow zoom">⊕</button>
       <button id="capBtn" aria-label="Caption size">Aa</button>
+      <button id="sleepBtn" aria-label="Sleep until morning">☾</button>
+      <select id="nightSel" aria-label="Night hours (black screen)">
+        <option value="off">Night off</option><option value="22-06">22–06</option><option value="22-07">22–07</option>
+        <option value="23-07">23–07</option><option value="00-07">00–07</option><option value="00-08">00–08</option>
+      </select>
     </div>
     <div class="ver" data-name="Slideshow"></div>
   </div>
 
   <div class="msg" id="msg">Loading photos…</div>
 
+  <div id="night" hidden>
+    <div id="nightClock"></div>
+    <button id="wakeBtn" type="button">Wake</button>
+  </div>
+
   <form class="unlock" id="unlock" autocomplete="on" hidden>
     <div class="big">🔒</div>
-    <div>These photos are encrypted.<br>Enter the passphrase to view them.</div>
+    <div id="unlockNote">These photos are encrypted.<br>Enter the passphrase to view them.</div>
     <input type="text" name="username" value="Slideshow" autocomplete="username" hidden>
     <input id="pass" type="password" placeholder="Passphrase" autocomplete="current-password" enterkeyhint="go" required>
     <label><input type="checkbox" id="remember" checked> Remember on this device</label>
@@ -150,58 +174,126 @@ const store = {
 };
 const $ = id => document.getElementById(id);
 
+// Test hooks, on this computer only: ?check=N checks every N seconds, ?at=HH:MM pretends the clock reads HH:MM now.
+const LOCAL = /^(127\.0\.0\.1|localhost)$/.test(location.hostname), qs = new URLSearchParams(location.search);
+const CHECK_MS = ((LOCAL && +qs.get('check')) || 60) * 1000;
+let clockOffset = 0;
+if (LOCAL && /^\d\d:\d\d$/.test(qs.get('at') || '')) {
+  const [h, m] = qs.get('at').split(':').map(Number), d = new Date();
+  d.setHours(h, m, 0, 0); clockOffset = d - Date.now();
+}
+const now = () => new Date(Date.now() + clockOffset);
+const hm = d => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
 const CAP_SIZES = ['S', 'M', 'L', 'XL'];
-const prefs = Object.assign({ seconds: 5, shuffle: false, cover: false, kenburns: true, capSize: 'M' }, store.get('prefs', {}));
+const NIGHTS = ['off', '22-06', '22-07', '23-07', '00-07', '00-08'];
+const prefs = Object.assign({ seconds: 5, shuffle: false, cover: false, kenburns: true, capSize: 'M', night: '23-07' }, store.get('prefs', {}));
 if (!CAP_SIZES.includes(prefs.capSize)) prefs.capSize = 'M';
+if (!NIGHTS.includes(prefs.night)) prefs.night = '23-07';
 const savePrefs = () => store.set('prefs', prefs);
 
-let photos = [];     // plain: [{src, caption}]   encrypted: [{entry, caption}]
-let order = [];      // indices into photos (shuffled or not)
-let pos = 0;         // position in order
-let playing = false, timer = null, front = $('imgA'), back = $('imgB');
+let photos = [];          // photos that play: {id, caption} plus src (plain) or entry (encrypted); id = src or entry.f
+let byId = new Map();
+let order = [];           // photo ids in play order (shuffled or not)
+let pos = 0;              // position in order
+let playing = false, timer = null, front = $('imgA'), back = $('imgB'), shownId = null;
 let wakeLock = null, uiTimer = null;
-let encKey = null;   // CryptoKey when the photos are encrypted
+let vault = null, encKey = null;   // the vault.json in use and its key, when the photos are encrypted
+let listSig = null;       // the photo list as last loaded (hash), to spot changes
+let started = false;      // photos are showing (not the loading or passphrase screen)
+let asleep = false;       // night screen showing
+let pendingNewest = null; // newest photo that arrived while asleep: shown at wake
+let reloadPending = false;// a new version (or the daily fresh start) waits for the next photo change
 const mod = i => { const n = order.length; return ((i % n) + n) % n; };
+const setPhotos = list => { photos = list; byId = new Map(list.map(p => [p.id, p])); };
 
-/* ---------- Load the photo list ---------- */
+/* ---------- Loading the photo list ---------- */
 function captionFrom(src) {
   return decodeURIComponent(src.split('/').pop().replace(/\.[^.]+$/, '')).replace(/[-_]+/g, ' ')
     .replace(/\b\w/g, c => c.toUpperCase());
 }
 
-async function loadList() {
-  const r = await fetch('photos.json', { cache: 'no-cache' });
+// Fetches a file of this app, giving up after 10 s so a weak signal never stalls anything.
+// live: straight from the network (the minute check), so being offline shows as offline.
+async function getFile(path, live) {
+  const ac = new AbortController(), t = setTimeout(() => ac.abort(), 10000);
+  try { return await fetch(path, { cache: 'no-cache', signal: ac.signal, headers: live ? { 'X-Live': '1' } : {} }); }
+  finally { clearTimeout(t); }
+}
+async function digest(buf) {
+  return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', buf)), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Each returns {sig, all, photos}: `all` lists every file the list names (hidden ones too), `photos` the ones that play.
+// When the list is unchanged (same sig) only {sig} comes back.
+async function loadEncrypted(live) {
+  const r = await getFile('photos.enc', live);
+  if (r.status === 404) return { sig: 'none', all: [], photos: [] };
+  if (!r.ok) throw new Error('Could not load photos.enc (' + r.status + ')');
+  const buf = await r.arrayBuffer(), sig = await digest(buf);
+  if (sig === listSig) return { sig };
+  const list = JSON.parse(new TextDecoder().decode(await Vault.decrypt(encKey, buf)));
+  const all = Array.isArray(list) ? list.filter(p => p && p.f) : [];
+  return { sig, all: all.map(e => e.f), photos: all.filter(e => !e.x).map(e => ({ id: e.f, entry: e, caption: e.c || '' })) };
+}
+async function loadPlain(live) {
+  const r = await getFile('photos.json', live);
   if (!r.ok) throw new Error('Could not load photos.json (' + r.status + ')');
-  const list = await r.json();
-  return list.map(p => typeof p === 'string' ? { src: p } : p)
-             .filter(p => p && p.src && p.show !== false)
-             .map(p => ({ src: p.src, caption: p.caption !== undefined ? p.caption : captionFrom(p.src) }));
+  const text = await r.text(), sig = await digest(new TextEncoder().encode(text));
+  if (sig === listSig) return { sig };
+  const list = JSON.parse(text).map(p => typeof p === 'string' ? { src: p } : p).filter(p => p && p.src);
+  return { sig, all: list.map(p => p.src),
+           photos: list.filter(p => p.show !== false).map(p => ({ id: p.src, src: p.src, caption: p.caption !== undefined ? p.caption : captionFrom(p.src) })) };
+}
+const loadPhotos = live => vault ? loadEncrypted(live) : loadPlain(live);
+async function readVault(live) {
+  const r = await getFile('vault.json', live);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('Could not load vault.json (' + r.status + ')');
+  return r.json();
 }
 
 function buildOrder(keepCurrent) {
   const cur = order[pos];
-  order = photos.map((_, i) => i);
+  order = photos.map(p => p.id);
   if (prefs.shuffle) {
     for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
   }
   pos = keepCurrent && cur !== undefined ? Math.max(0, order.indexOf(cur)) : 0;
 }
 
+/* ---------- Resuming where it was (after an update, the daily fresh start or a restart) ---------- */
+const saveState = () => store.set('show', { order, pos, paused: !playing });
+function restoreOrder() {
+  const s = store.get('show', null);
+  if (!s || !Array.isArray(s.order)) { buildOrder(false); return s; }
+  const cur = s.order[s.pos];
+  order = s.order.filter(id => byId.has(id));
+  order.push(...photos.map(p => p.id).filter(id => !order.includes(id)));
+  pos = order.indexOf(cur);
+  if (pos < 0) pos = Math.min(Math.max(0, +s.pos || 0), order.length - 1);
+  return s;
+}
+
 /* ---------- Encrypted mode: passphrase ---------- */
-function askPassphrase(vault) {
+let asking = null;   // {vault, resolve} while the passphrase screen is up
+const UNLOCK_NOTE = 'These photos are encrypted.<br>Enter the passphrase to view them.';
+function askPassphrase(v, changed) {
   const f = $('unlock');
+  $('unlockNote').innerHTML = changed ? 'The passphrase was changed.<br>Enter the new one.' : UNLOCK_NOTE;
+  $('unlockErr').textContent = '';
   $('msg').hidden = true; f.hidden = false;
   setTimeout(() => $('pass').focus(), 50);
   return new Promise(resolve => {
+    asking = { vault: v, resolve: key => { asking = null; $('pass').value = ''; f.hidden = true; resolve(key); } };
     f.onsubmit = async ev => {
       ev.preventDefault();
       const btn = f.querySelector('button');
       btn.disabled = true; $('unlockErr').textContent = 'Unlocking…';
       try {
-        const key = await Vault.unlock($('pass').value, vault);
-        if ($('remember').checked) await Vault.saveKey(key, vault, $('pass').value);
-        $('pass').value = ''; f.hidden = true; $('msg').hidden = false;
-        resolve(key);
+        const key = await Vault.unlock($('pass').value, v);
+        if ($('remember').checked) await Vault.saveKey(key, v, $('pass').value);
+        if (asking) asking.resolve(key);
       } catch (e) {
         $('unlockErr').textContent = e.message; $('pass').select();
       }
@@ -212,50 +304,79 @@ function askPassphrase(vault) {
 
 $('lockBtn').onclick = async () => { await Vault.forgetKey(); location.reload(); };
 
+// The Manager made a new vault (new passphrase): stop, ask for the new one, then start again with the new list.
+async function passphraseChanged(v) {
+  let key = await Vault.loadKey(v);   // already remembered on this device (changed here)?
+  if (!key) {
+    clearTimeout(timer); releaseWake(); forgetPhotos();
+    started = false; document.body.classList.add('loading');
+    key = await askPassphrase(v, true);
+  }
+  vault = v; encKey = key; listSig = null; forgetPhotos();
+  try {
+    const got = await loadEncrypted(true);
+    listSig = got.sig; setPhotos(got.photos);
+    store.set('show', null); order = [];
+    if (photos.length) begin(); else stopShow(got.all.length);
+  } catch { listSig = null; }   // try again at the next check
+}
+
 /* ---------- Getting a displayable URL (decrypting if needed) ---------- */
-const urlCache = new Map();   // photo index -> Promise<objectURL>
-function getUrl(i) {
-  const p = photos[i];
+const urlCache = new Map();   // photo id -> Promise<objectURL>
+function getUrl(id) {
+  const p = byId.get(id);
   if (!encKey) return Promise.resolve(p.src);
-  if (!urlCache.has(i)) {
+  if (!urlCache.has(id)) {
     const pr = Vault.loadPhotoBlob(encKey, p.entry).then(b => URL.createObjectURL(b));
-    pr.catch(() => urlCache.delete(i));
-    urlCache.set(i, pr);
+    pr.catch(() => urlCache.delete(id));
+    urlCache.set(id, pr);
     trimCache();
   }
-  return urlCache.get(i);
+  return urlCache.get(id);
+}
+function dropUrl(id) {
+  const pr = urlCache.get(id);
+  urlCache.delete(id);
+  if (pr) pr.then(u => { if (front.src !== u && back.src !== u) URL.revokeObjectURL(u); }).catch(() => {});
 }
 function trimCache() {
   const keep = new Set([order[pos], order[mod(pos + 1)], order[mod(pos - 1)]]);
-  for (const [i, pr] of urlCache) {
+  for (const id of [...urlCache.keys()]) {
     if (urlCache.size <= 6) break;
-    if (keep.has(i)) continue;
-    urlCache.delete(i);
-    pr.then(u => { if (front.src !== u && back.src !== u) URL.revokeObjectURL(u); }).catch(() => {});
+    if (!keep.has(id)) dropUrl(id);
   }
+}
+// Clears decrypted photos from memory and the screen (passphrase changed).
+function forgetPhotos() {
+  for (const id of [...urlCache.keys()]) dropUrl(id);
+  for (const im of [front, back]) { im.classList.remove('show'); im.removeAttribute('src'); }
+  setCaption('', null); shownId = null;
 }
 
 /* ---------- Showing slides ---------- */
 const plainPreload = new Map();
 function preload(p) {
-  const i = order[mod(p)];
-  if (encKey) { getUrl(i).catch(() => {}); return; }
-  const src = photos[i].src;
-  if (plainPreload.has(src)) return;
-  const im = new Image(); im.decoding = 'async'; im.src = src;
-  plainPreload.set(src, im);
+  const id = order[mod(p)];
+  if (encKey) { getUrl(id).catch(() => {}); return; }
+  if (plainPreload.has(id)) return;
+  const im = new Image(); im.decoding = 'async'; im.src = id;
+  plainPreload.set(id, im);
   if (plainPreload.size > 6) plainPreload.delete(plainPreload.keys().next().value);
 }
 
+const updateCounter = () => { $('counter').textContent = order.length ? (pos + 1) + ' / ' + order.length : ''; };
+
 let showToken = 0;
 async function show(newPos, instant) {
-  const n = order.length;
+  if (!order.length) return;
   pos = mod(newPos);
-  const my = ++showToken, p = photos[order[pos]];
-  $('counter').textContent = (pos + 1) + ' / ' + n;
+  saveState();
+  if (reloadPending) { location.reload(); return; }   // a new version: switch over between photos
+  const my = ++showToken, id = order[pos], p = byId.get(id);
+  updateCounter();
   clearTimeout(timer);
   let url;
-  try { url = await getUrl(order[pos]); }
+  try { url = await getUrl(id); }
   catch {
     if (my === showToken) { $('status').textContent = 'Could not load photo ' + (pos + 1); if (playing) schedule(); }
     return;
@@ -269,7 +390,9 @@ async function show(newPos, instant) {
     target.classList.add('show');
     front.classList.remove('show');
     [front, back] = [target, front];
+    shownId = id;
     setCaption(p.caption, target);
+    if (/^Could not/.test($('status').textContent)) $('status').textContent = playing ? '' : 'Paused';
     if (instant) requestAnimationFrame(() => { front.style.transition = back.style.transition = ''; });
   };
   target.onerror = () => { $('status').textContent = 'Could not show photo ' + (pos + 1); };
@@ -306,7 +429,7 @@ function placeBanner() {
 addEventListener('resize', placeBanner);
 
 /* ---------- Playback ---------- */
-function schedule() { clearTimeout(timer); timer = setTimeout(next, prefs.seconds * 1000); }
+function schedule() { clearTimeout(timer); if (!asleep) timer = setTimeout(next, prefs.seconds * 1000); }
 
 async function setPlaying(on) {
   playing = on;
@@ -314,15 +437,22 @@ async function setPlaying(on) {
   $('status').textContent = on ? '' : 'Paused';
   if (on) { schedule(); requestWake(); hideUiSoon(); }
   else { clearTimeout(timer); releaseWake(); showUi(); }
+  saveState();
 }
 
-// Keep the screen on while playing (supported in iOS 16.4+)
+// Keep the screen on while playing (supported in iOS 16.4+); not at night.
 async function requestWake() {
+  if (asleep) return;
   try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } }
   catch { /* not fatal: screen may dim */ }
 }
 function releaseWake() { if (wakeLock) { wakeLock.release(); wakeLock = null; } }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && playing) requestWake(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  updateNight();
+  if (playing) requestWake();
+  check();
+});
 
 function applyPrefs() {
   document.body.classList.toggle('cover', prefs.cover);
@@ -330,6 +460,7 @@ function applyPrefs() {
   document.body.style.setProperty('--dur', (prefs.seconds + 1) + 's');
   document.body.style.setProperty('--fade', Math.min(1, prefs.seconds / 4) + 's');
   $('speed').value = String(prefs.seconds);
+  $('nightSel').value = prefs.night;
   $('shuffleBtn').classList.toggle('on', prefs.shuffle);
   $('fitBtn').classList.toggle('on', prefs.cover);
   $('kbBtn').classList.toggle('on', prefs.kenburns);
@@ -368,35 +499,184 @@ $('stage').addEventListener('touchend', e => {
 });
 $('stage').addEventListener('click', e => { if (!('ontouchstart' in window)) toggleUi(); });
 document.addEventListener('keydown', e => {
-  if (e.target.closest && e.target.closest('input, select, textarea') || !photos.length) return;
+  if (e.target.closest && e.target.closest('input, select, textarea') || !started || asleep) return;
   if (e.key === 'ArrowRight') next();
   else if (e.key === 'ArrowLeft') prev();
   else if (e.key === ' ') { e.preventDefault(); setPlaying(!playing); }
 });
 
+/* ---------- Night hours: black screen, Sleep and Wake ---------- */
+// prefs.night is 'off' or 'HH-HH' (night from the first hour to the second). A Sleep or Wake press
+// overrides the schedule until its next change, and is kept across reloads.
+function nightHours() {
+  if (prefs.night === 'off') return null;
+  const [start, end] = prefs.night.split('-').map(Number);
+  return { start, end };
+}
+function inNight(d) {
+  const n = nightHours();
+  if (!n) return false;
+  const h = d.getHours() + d.getMinutes() / 60;
+  return n.start > n.end ? (h >= n.start || h < n.end) : (h >= n.start && h < n.end);
+}
+function nextAt(hour) {   // the next time the clock shows hour:00
+  const d = now(), t = new Date(d);
+  t.setHours(hour, 0, 0, 0);
+  if (t <= d) t.setDate(t.getDate() + 1);
+  return +t;
+}
+function shouldSleep() {
+  const o = store.get('nightOverride', null);
+  if (o && +now() < o.until) return o.mode === 'sleep';
+  return inNight(now());
+}
+function updateNight() {
+  const s = shouldSleep();
+  if (s === asleep) return;
+  asleep = s;
+  document.body.classList.toggle('night', s);
+  $('night').hidden = !s;
+  $('night').classList.remove('peek');
+  if (s) { clearTimeout(timer); releaseWake(); hideUi(); return; }
+  if (!started) return;
+  if (pendingNewest && order.includes(pendingNewest)) { const id = pendingNewest; pendingNewest = null; show(order.indexOf(id)); }
+  else if (playing) schedule();
+  if (playing) requestWake();
+}
+$('sleepBtn').onclick = () => {
+  const n = nightHours();
+  store.set('nightOverride', { mode: 'sleep', until: n ? nextAt(n.end) : 8.64e15 });
+  updateNight();
+};
+$('wakeBtn').onclick = e => {
+  e.stopPropagation();
+  const n = nightHours();
+  store.set('nightOverride', { mode: 'wake', until: n ? nextAt(n.start) : 0 });
+  updateNight();
+};
+$('nightSel').onchange = e => { prefs.night = e.target.value; savePrefs(); store.set('nightOverride', null); updateNight(); showUi(); };
+let peekTimer = null;
+$('night').onclick = () => {
+  $('nightClock').textContent = hm(now());
+  $('night').classList.add('peek');
+  clearTimeout(peekTimer); peekTimer = setTimeout(() => $('night').classList.remove('peek'), 10000);
+};
+setInterval(updateNight, 20000);
+
+/* ---------- Checking for changes every minute ---------- */
+let swReg = null, checking = false, lastCheck = null, offlineSince = null, ready = false;   // ready: vault.json read at startup
+
+// A new list: drop removed and hidden photos, update captions, and jump to the newest added photo.
+function applyList(got) {
+  const before = new Set(photos.map(p => p.id));
+  setPhotos(got.photos);
+  tidyPhotoCache(got.all);
+  for (const id of [...urlCache.keys()]) if (!byId.has(id)) dropUrl(id);
+  if (!photos.length) { stopShow(got.all.length); return; }
+  if (!started) { begin(); return; }
+  const added = photos.filter(p => !before.has(p.id)).map(p => p.id);
+  const curId = order[pos];
+  order = order.filter(id => byId.has(id));
+  let at = order.indexOf(curId);
+  const curGone = at < 0;
+  if (curGone) at = Math.min(pos, order.length) - 1;   // the photo before the removed one
+  const fresh = added.reverse();                       // newest (last in the list) first
+  order.splice(at + 1, 0, ...fresh);
+  pos = Math.max(0, at);
+  if (!curGone && shownId === curId) {                 // caption edited on the photo showing
+    const c = byId.get(curId).caption || '';
+    if ($('capText').textContent !== c) setCaption(c, capFor);
+  }
+  if (fresh.length) { if (asleep) pendingNewest = fresh[0]; else show(at + 1); }
+  else if (curGone && !asleep) show(at + 1);
+  else { updateCounter(); saveState(); }
+}
+
+// No photos to play (all removed or hidden): say so, and start again when some come back.
+function stopShow(any) {
+  clearTimeout(timer); releaseWake(); started = false;
+  document.body.classList.add('loading');
+  $('msg').hidden = false;
+  $('msg').textContent = any ? 'All photos are hidden. Tick some in the Manager (pages/manager/).'
+    : vault ? 'No photos yet. Add some with the Manager (pages/manager/).'
+    : 'photos.json has no photos to show. Add some to the photos folder (or check for "show": false).';
+}
+
+function begin() {
+  const s = restoreOrder();
+  started = true;
+  $('msg').hidden = true;
+  document.body.classList.remove('loading');
+  placeBanner();
+  updateNight();
+  show(pos, true);
+  setPlaying(!(s && s.paused));
+}
+
+// Removes cached photo files the list no longer names, so the device's storage doesn't keep growing.
+async function tidyPhotoCache(files) {
+  try {
+    const keep = new Set(files.map(f => new URL(f, location.href).pathname));
+    const c = await caches.open('slideshow-photos');
+    for (const req of await c.keys()) if (!keep.has(new URL(req.url).pathname)) await c.delete(req);
+  } catch { /* no cache: nothing to tidy */ }
+}
+
+async function check() {
+  if (document.hidden || checking || !ready) return;
+  checking = true;
+  try {
+    if (swReg) swReg.update().catch(() => {});
+    if (vault) {
+      const v = await readVault(true);
+      if (asking) {
+        // On the passphrase screen: if vault.json is back to one whose key this device remembers
+        // (the change was undone), start again with it.
+        if (v && v.salt !== asking.vault.salt && await Vault.loadKey(v)) location.reload();
+        return;
+      }
+      if (v && v.salt !== vault.salt) { passphraseChanged(v); return; }
+    }
+    if (vault && !encKey) return;
+    const got = await loadPhotos(true);
+    if (got.sig !== listSig) { listSig = got.sig; applyList(got); }
+    lastCheck = now(); offlineSince = null;
+  } catch {
+    if (!offlineSince) offlineSince = now();
+  } finally {
+    checking = false;
+    $('chk').textContent = offlineSince ? 'Offline since ' + hm(offlineSince)
+      : lastCheck ? 'Checked ' + hm(lastCheck) + ' · ' + photos.length + ' photo' + (photos.length === 1 ? '' : 's') : '';
+  }
+}
+
+// A new version (new service worker) or the daily fresh start: reload between photos, or now if nothing is playing.
+function refreshSoon() {
+  if (started && playing && !asleep) reloadPending = true;
+  else { saveState(); location.reload(); }
+}
+setTimeout(refreshSoon, nextAt(3) - +now());   // daily, around 3 am
+
 /* ---------- Start ---------- */
 (async () => {
   applyPrefs();
+  updateNight();
+  setInterval(check, CHECK_MS);
   try {
-    const vault = await Vault.loadVault();
+    vault = await Vault.loadVault();
+    ready = true;
     if (vault) {
-      encKey = (await Vault.loadKey(vault)) || (await askPassphrase(vault));
+      encKey = (await Vault.loadKey(vault)) || (await askPassphrase(vault, false));
       $('lockBtn').hidden = false;
+      $('msg').hidden = false;
       $('msg').textContent = 'Loading photos…';
-      const list = await Vault.loadList(encKey);
-      if (!list.length) throw new Error('No photos yet. Add some with the Manager (pages/manager/).');
-      photos = list.filter(e => !e.x).map(e => ({ entry: e, caption: e.c || '' }));
-      if (!photos.length) throw new Error('All photos are hidden. Tick some in the Manager (pages/manager/).');
-    } else {
-      photos = await loadList();
-      if (!photos.length) throw new Error('photos.json has no photos to show. Add some to the photos folder (or check for "show": false).');
     }
-    $('msg').remove();
-    document.body.classList.remove('loading');
-    placeBanner();
-    buildOrder(false);
-    show(0, true);
-    setPlaying(true);
+    const got = await loadPhotos(false);
+    listSig = got.sig;
+    setPhotos(got.photos);
+    tidyPhotoCache(got.all);
+    if (photos.length) begin(); else stopShow(got.all.length);
+    lastCheck = now();
   } catch (e) {
     $('msg').textContent = e.message;
   }
@@ -408,7 +688,11 @@ fetch('sw.js', { cache: 'no-cache' }).then(r => r.text()).then(t => {
   if (m) document.querySelectorAll('.ver').forEach(e => { e.textContent = e.dataset.name + ' v' + m[2]; e.title = m[1] + '-v' + m[2]; });
 }).catch(() => {});
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+if ('serviceWorker' in navigator) {
+  const hadWorker = !!navigator.serviceWorker.controller;   // not on the very first visit
+  navigator.serviceWorker.register('sw.js').then(r => { swReg = r; }).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadWorker) refreshSoon(); });
+}
 </script>
 </body>
 </html>
