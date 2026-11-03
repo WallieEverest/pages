@@ -103,11 +103,28 @@ GitHub Pages sites are public, so the slideshow can encrypt your photos. Each ph
 6. Delete any plain photos left in `slideshow/photos/` (the `.enc` files stay). Keep `slideshow/photos.json`: once `vault.json` exists it is ignored, and it is only used if you go back to unencrypted photos.
 7. Open the slideshow and enter the passphrase. With **Remember on this device** ticked, it isn't asked again. 🔒 (top right, when controls are showing) locks it and forgets the passphrase on that device. The Manager has the same **Remember on this device** option. The two apps share the remembered passphrase: remembering it in either one unlocks both on that device, and locking either one locks both.
 
-**Adding, removing or re-captioning later**: open the Manager again, make the changes, and upload the new zip the same way. It replaces `photos.enc`. Removed photos are listed with their file names so you can delete them from `slideshow/photos/`.
+**Adding, removing or re-captioning later**: open the Manager again, make the changes, and upload them. The simplest way is **Upload to GitHub** (below), straight from the Manager. Without it, download and upload by hand:
+- **Only captions or ticks changed:** the button says **Download photos.enc**. It saves that one file. Upload it on GitHub into `slideshow/` (**Add file → Upload files**), replacing the old one. The Manager shows a direct link to the upload page. Nothing needs unzipping, so this works well on an iPhone. If Files saved it as `photos (1).enc`, rename it to `photos.enc` first.
+- **Photos added or removed:** it downloads a zip. Upload its contents the same way as the first time. It replaces `photos.enc`. Removed photos are listed with their file names so you can delete them from `slideshow/photos/`.
 
-**Choosing which photos play**: untick a photo's box in the Manager to leave it (and its caption) out of the slideshow without deleting it. **All** / **None** tick or untick everything, so you can keep a large library and play a chosen set from it. Tick it again any time to bring it back. If you only change ticks, the zip's photo files haven't changed: uploading `photos.enc` is enough.
+**Choosing which photos play**: untick a photo's box in the Manager to leave it (and its caption) out of the slideshow without deleting it. **All** / **None** tick or untick everything, so you can keep a large library and play a chosen set from it. Tick it again any time to bring it back. If you only change ticks, only `photos.enc` changes.
 
-From an iPhone, GitHub's upload page doesn't keep folders. Upload the `.enc` files from the zip's `photos` folder into `slideshow/photos/`, then upload `photos.enc` and `vault.json` into `slideshow/`.
+From an iPhone, GitHub's upload page doesn't keep folders. Upload the `.enc` files from the zip's `photos` folder into `slideshow/photos/`, then upload `photos.enc` and `vault.json` into `slideshow/`. (The Manager links to both upload pages.)
+
+**Upload to GitHub, straight from the Manager** (best on iPhone and iPad: no zip, no GitHub website)
+
+Connect a GitHub token once on each device:
+
+1. Signed in to GitHub, open the **Create a token** link in the Manager's **GitHub** box (it opens github.com → Settings → Developer settings → Fine-grained tokens → **Generate new token**).
+2. **Token name:** anything, for example *Manager on iPhone*. **Expiration:** the longest offered (GitHub may ask for a new token after that).
+3. **Repository access:** **Only select repositories** → **pages**.
+4. **Permissions → Repository permissions → Contents:** **Read and write**. Leave everything else as it is.
+5. Tap **Generate token**, copy it (it starts with `github_pat_`; GitHub shows it only once), paste it into the Manager and tap **Connect**.
+
+After that, **Upload to GitHub…** appears under the list of changes. It shows what will change. Tap **Upload** and the Manager saves everything to GitHub as one update: new photos, the new list, and deleting removed photo files (and the old files after a passphrase change). The slideshow updates about a minute later. The download is still there as a small link under the button.
+
+- If the photos were changed from another device after you opened the Manager, the upload stops and nothing is changed. Reload and make your edits again.
+- When the token expires or is revoked, the Manager says so: create a new one and connect again. **Disconnect** removes it from the device.
 
 **Command line alternative** (if you keep a local clone of the repo):
 
@@ -130,7 +147,8 @@ The script and the Manager use the same format and passphrase, so you can mix th
 - Visible to anyone: that the site exists, how many photos there are and roughly how big each one is, and when you uploaded them.
 - **Git history:** if real photos were ever committed unencrypted, they stay in the repo's history even after you delete them. If that happened, the simplest fix is to delete the repository, create a new one, and upload only the encrypted files.
 - With **Remember on this device** ticked, the device stores a non-exportable browser key and the passphrase itself, so the Manager can show it. Anyone who can open the apps on your unlocked device can see the passphrase there. Leave the box unticked on shared devices, or use 🔒 / **Lock** to clear it.
-- **Changing the passphrase:** in the Manager, the **Passphrase** box shows the current one (tap **Show**). Type a new one, repeat it, and tap **Download update**. Every photo is re-encrypted with new file names, so the zip contains everything; upload it as usual and delete the old files it lists. Other devices ask for the new passphrase once. Keep the old one until the upload is done: the site uses it until then.
+- **Changing the passphrase:** in the Manager, the **Passphrase** box shows the current one (tap **Show**). Type a new one, repeat it, and tap **Upload to GitHub…** (or **Download update**). Every photo is re-encrypted with new file names. Upload to GitHub does everything, including deleting the old files. With the zip, upload it as usual and delete the old files it lists. Other devices ask for the new passphrase once. Keep the old one until the upload is done: the site uses it until then.
+- **GitHub token** (only if you connect one): it's stored on the device encrypted with the photo key, so it can't be read without the passphrase, and **Lock** deletes it. It can only change files in this one repository: it can't touch your account or other repos. If a device is lost, delete the token on github.com (Settings → Developer settings → Fine-grained tokens). Someone using it could change the website, but your photos stay encrypted.
 
 **Technical details:** the key is derived with PBKDF2-HMAC-SHA256 (600,000 iterations, random 16-byte salt in `vault.json`). Each file is a 12-byte random IV followed by AES-256-GCM ciphertext and tag. Everything uses the browser's built-in Web Crypto; there are no third-party libraries.
 
@@ -153,7 +171,7 @@ Not using the action? Edit `photos.json` by hand; plain strings work too: `["pho
 
 ## Updating the apps
 
-iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v7`, the slideshow at `slideshow-v4` and the Manager at `manager-v2`; increase the number). `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
+iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v7`, the slideshow at `slideshow-v4` and the Manager at `manager-v3`; increase the number). `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
 
 ## Limitations (iOS web apps)
 
