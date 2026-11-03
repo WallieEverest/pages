@@ -64,8 +64,8 @@
   .controls option { color: #fff; background: #222; }
   .controls button.on { background: rgba(255,255,255,0.85); color: #000; }
   .controls button:active { opacity: 0.6; }
-  #playBtn, #prevBtn, #nextBtn { min-width: 56px; font-size: 18px; }
-  #prevBtn, #nextBtn { font-size: 20px; letter-spacing: -0.2em; text-indent: -0.2em; }
+  #playBtn, #prevBtn, #nextBtn { min-width: 56px; }
+  .controls svg { fill: currentColor; display: block; margin: auto; }   /* previous, play/pause and next: all 16px high */
   .ver { text-align: center; font-size: 11px; opacity: 0.45; margin-top: 8px; }
   #speed { text-align: center; text-align-last: center; }
   .msg { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: #aaa; font-size: 16px; line-height: 1.5; }
@@ -131,9 +131,9 @@
 
   <div class="ui bar-bot">
     <div class="controls">
-      <button id="prevBtn" aria-label="Previous">◀︎◀︎</button>
-      <button id="playBtn" aria-label="Play or pause">▶︎</button>
-      <button id="nextBtn" aria-label="Next">▶︎▶︎</button>
+      <button id="prevBtn" aria-label="Previous"><svg width="22" height="16" viewBox="0 0 22 16"><path d="M22 0 11 8 22 16zM11 0 0 8 11 16z"/></svg></button>
+      <button id="playBtn" aria-label="Play or pause"><svg width="14" height="16" viewBox="0 0 14 16"><path d="M0 0 14 8 0 16z"/></svg></button>
+      <button id="nextBtn" aria-label="Next"><svg width="22" height="16" viewBox="0 0 22 16"><path d="M0 0 11 8 0 16zM11 0 22 8 11 16z"/></svg></button>
       <select id="speed" aria-label="Seconds per photo">
         <option value="5">5s</option><option value="10">10s</option><option value="20">20s</option>
       </select>
@@ -193,6 +193,8 @@ const hm = d => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 const CAP_SIZES = ['S', 'M', 'L', 'XL'];
 const prefs = Object.assign({ seconds: 5, capSize: 'M' }, store.get('prefs', {}));
 ['cover', 'kenburns', 'shuffle', 'night'].forEach(k => delete prefs[k]);   // settings that were removed
+const PLAY_ICON = '<svg width="14" height="16" viewBox="0 0 14 16"><path d="M0 0 14 8 0 16z"/></svg>';
+const PAUSE_ICON = '<svg width="14" height="16" viewBox="0 0 14 16"><path d="M0 0h5v16H0zM9 0h5v16H9z"/></svg>';
 const SECONDS = [5, 10, 20];
 if (!SECONDS.includes(prefs.seconds)) prefs.seconds = 5;
 if (!CAP_SIZES.includes(prefs.capSize)) prefs.capSize = 'M';
@@ -430,7 +432,7 @@ function schedule() { clearTimeout(timer); if (!asleep) timer = setTimeout(next,
 
 async function setPlaying(on) {
   playing = on;
-  $('playBtn').textContent = on ? '❚❚' : '▶︎';
+  $('playBtn').innerHTML = on ? PAUSE_ICON : PLAY_ICON;
   $('status').textContent = on ? '' : 'Paused';
   if (on) { schedule(); requestWake(); }
   else { clearTimeout(timer); releaseWake(); }
