@@ -63,6 +63,9 @@
     border: 1px solid rgba(255,255,255,0.25); border-radius: 22px; height: 44px; min-width: 44px; padding: 0 8px;
     -webkit-appearance: none; appearance: none;
   }
+  /* The menus' drop-down lists: dark, whatever the device's light or dark setting */
+  .controls select { color-scheme: dark; }
+  .controls option { color: #fff; background: #222; }
   .controls button.on { background: rgba(255,255,255,0.85); color: #000; }
   .controls button:active { opacity: 0.6; }
   #playBtn { min-width: 56px; font-size: 18px; }
@@ -94,13 +97,11 @@
   #unlockErr { min-height: 22px; color: #ff9f8a; font-size: 15px; }
   #chk { font-size: 12px; opacity: 0.7; }
 
-  /* Night: a black screen; a tap shows the clock and a Wake button for 10 seconds */
+  /* Night: a black screen with a dim clock and a Wake button */
   #night {
-    position: fixed; inset: 0; z-index: 4; background: #000; color: #666; cursor: pointer;
+    position: fixed; inset: 0; z-index: 4; background: #000; color: #666;
     display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px;
   }
-  #night > * { opacity: 0; transition: opacity 0.5s; pointer-events: none; }
-  #night.peek > * { opacity: 1; pointer-events: auto; }
   #nightClock { font-size: 44px; font-weight: 200; }
   #wakeBtn { font: inherit; font-size: 17px; color: #bbb; background: #161616; border: 1px solid #333; border-radius: 22px; padding: 10px 30px; }
   body.night .ui, body.night #banner { display: none; }
@@ -137,7 +138,7 @@
       <button id="fitBtn" aria-label="Fill screen">⤢</button>
       <button id="kbBtn" aria-label="Slow zoom">⊕</button>
       <button id="capBtn" aria-label="Caption size">Aa</button>
-      <button id="sleepBtn" aria-label="Sleep until morning">☾</button>
+      <button id="sleepBtn" aria-label="Sleep until morning">Sleep</button>
       <select id="nightSel" aria-label="Night hours (black screen)">
         <option value="off">Night off</option><option value="22-06">22–06</option><option value="22-07">22–07</option>
         <option value="23-07">23–07</option><option value="00-07">00–07</option><option value="00-08">00–08</option>
@@ -532,11 +533,11 @@ function shouldSleep() {
 }
 function updateNight() {
   const s = shouldSleep();
+  $('nightClock').textContent = hm(now());
   if (s === asleep) return;
   asleep = s;
   document.body.classList.toggle('night', s);
   $('night').hidden = !s;
-  $('night').classList.remove('peek');
   if (s) { clearTimeout(timer); releaseWake(); hideUi(); return; }
   if (!started) return;
   if (pendingNewest && order.includes(pendingNewest)) { const id = pendingNewest; pendingNewest = null; show(order.indexOf(id)); }
@@ -555,12 +556,6 @@ $('wakeBtn').onclick = e => {
   updateNight();
 };
 $('nightSel').onchange = e => { prefs.night = e.target.value; savePrefs(); store.set('nightOverride', null); updateNight(); showUi(); };
-let peekTimer = null;
-$('night').onclick = () => {
-  $('nightClock').textContent = hm(now());
-  $('night').classList.add('peek');
-  clearTimeout(peekTimer); peekTimer = setTimeout(() => $('night').classList.remove('peek'), 10000);
-};
 setInterval(updateNight, 20000);
 
 /* ---------- Checking for changes every minute ---------- */

@@ -94,7 +94,7 @@ If you had an older home-screen icon (for example one named *Weather*, or one ad
 ## Slideshow
 
 **Controls:** swipe left/right to change photos, tap to show or hide controls. Controls hide themselves after 3 seconds while playing.
-Buttons: previous, play/pause, next, seconds per photo, shuffle (⇄), fill screen (⤢), slow zoom, caption size (**Aa**: each tap steps through S, M, L and XL), **☾** (sleep until morning) and the **Night** hours menu.
+Buttons: previous, play/pause, next, seconds per photo, shuffle (⇄), fill screen (⤢), slow zoom, caption size (**Aa**: each tap steps through S, M, L and XL), **Sleep** (until morning) and the **Night** hours menu.
 **Captions** stay on screen in a banner over the bottom of the photo, whether the controls are showing or not. While the controls are showing, the banner moves up above them.
 Settings are remembered on each device. The screen stays on while playing (iOS 16.4 and later).
 
@@ -108,8 +108,8 @@ Settings are remembered on each device. The screen stays on while playing (iOS 1
 - If the passphrase is changed in the Manager, the slideshow stops and asks for the new one.
 
 **Night hours:** the **Night** menu sets when the screen goes black (default 23–07; choose **Night off** to run around the clock). It pauses at night and carries on in the morning from where it was. Photos uploaded overnight come first.
-- **☾** blacks the screen now, until the morning.
-- At night, tap the black screen to see the time and a **Wake** button. Wake keeps it running until the next night.
+- **Sleep** blacks the screen now, until the morning.
+- At night the black screen shows a dim clock and a **Wake** button. Wake keeps it running until the next night.
 - iOS doesn't let a web page switch the screen off, so a "black" screen is still lit, just showing black.
 
 ### iPad as a photo kiosk
@@ -202,7 +202,7 @@ Not using the action? Edit `photos.json` by hand; plain strings work too: `["pho
 
 ## Updating the apps
 
-iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v9`, the slideshow at `slideshow-v7` and the Manager at `manager-v9`; increase the number). The number shows in each app, so you can check a device has the latest. The launcher (`index.html`) has no service worker; bump `VERSION` in its script (`my-apps-v2`) when you change it. `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
+iPhone caches the apps. After changing an app's code (`index.html`, `vault.js`, `sw.js`), bump `VERSION` at the top of that app's `sw.js` (the Boating app is at `weather-v9`, the slideshow at `slideshow-v8` and the Manager at `manager-v9`; increase the number). The number shows in each app, so you can check a device has the latest. The launcher (`index.html`) has no service worker; bump `VERSION` in its script (`my-apps-v2`) when you change it. `slideshow/vault.js` is used by both the slideshow and the Manager, so after changing it bump both. Then close and reopen the app on your phone, twice if needed.
 
 ## Limitations (iOS web apps)
 
