@@ -448,6 +448,7 @@ $('allBtn').onclick = () => setAll(false);
 $('noneBtn').onclick = () => setAll(true);
 
 let lastParts = [];
+let busy = false;   // an upload is running: keep both buttons off until it ends
 // Only the list changed (captions, ticks): just photos.enc needs to go to GitHub.
 const listOnly = () => !isNewVault && !newPass && !includeAll && !items.some(i => i.isNew || i.removed);
 
@@ -466,9 +467,9 @@ function updateSummary() {
   if (shown) parts.push(`${shown} to show`);
   if (hidden) parts.push(`${hidden} to hide`);
   $('summary').textContent = parts.length ? 'Changes: ' + parts.join(', ') + '.' : 'No changes yet.';
-  $('dlBtn').disabled = $('upBtn').disabled = !parts.length;
+  $('dlBtn').disabled = $('upBtn').disabled = busy || !parts.length;
   $('dlBtn').textContent = listOnly() ? 'Download photos.enc' : 'Download update (.zip)';
-  $('confirm').hidden = true;
+  $('confirm').hidden = true; $('upBtn').hidden = !GitHub.connected();   // an edit cancels an open confirmation
   lastParts = parts;
   const kept = items.filter(i => !i.removed);
   $('listTitle').textContent = `Photos (${kept.length})`;
@@ -627,6 +628,7 @@ $('upGo').onclick = async () => {
   const rekeyed = !!newPass, summary = lastParts.join(', ');
   $('confirm').hidden = true; $('after').hidden = true;
   $('dlBtn').disabled = $('upBtn').disabled = true; $('upBtn').hidden = false;
+  busy = true;
   const fail = msg => { $('summary').innerHTML = `<span class="err">${esc(msg)}</span>`; $('upBtn').disabled = $('dlBtn').disabled = false; };
   try {
     // Refuse if another device changed the photos since this page loaded them.
@@ -665,7 +667,7 @@ $('upGo').onclick = async () => {
   } catch (e) {
     if (e.status === 401) { await GitHub.forgetToken(); ghExpires = null; showGitHub(); $('ghErr').textContent = e.message; }
     fail(e.message + (e.conflict ? '' : ' Nothing was uploaded.'));
-  }
+  } finally { busy = false; }
 };
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
