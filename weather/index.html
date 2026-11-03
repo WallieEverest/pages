@@ -117,9 +117,8 @@
 <body>
   <div class="top">
     <form id="searchForm" autocomplete="off">
-      <input id="q" type="search" placeholder="City or ZIP code" enterkeyhint="search">
+      <input id="q" type="search" placeholder="ZIP code" inputmode="numeric" maxlength="5" enterkeyhint="search" aria-label="ZIP code">
     </form>
-    <button class="btn" id="locBtn" aria-label="Use my location">📍</button>
     <button class="btn" id="unitBtn" aria-label="Toggle units">°F</button>
   </div>
 
@@ -136,7 +135,11 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 };
 let units = store.get('units', 'F');          // 'F' or 'C' (wind is always in knots)
-let place = store.get('place', null);         // {name, lat, lon} from GPS or search
+let place = store.get('place', null);         // {zip, name, lat, lon} from a ZIP code search
+if (place && !place.zip) {   // a place saved from GPS by an older version: forget it and the data saved for it
+  place = null;
+  ['place', 'cache', 'nws'].forEach(k => { try { localStorage.removeItem(k); } catch {} });
+}
 
 const $ = id => document.getElementById(id);
 const app = $('app');
@@ -187,24 +190,12 @@ async function fetchForecast(lat, lon) {
   return r.json();
 }
 
-// City name or ZIP code. US places first (NWS marine forecasts cover US waters), then worldwide.
-async function geocode(name) {
-  const search = async cc => {
-    const r = await fetchT('https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&format=json' + cc + '&name=' + encodeURIComponent(name), {}, 10000);
-    return (await r.json()).results || [];
-  };
-  const g = (await search('&countryCode=US'))[0] || (await search(''))[0];
-  if (!g) throw new Error('No place found for "' + name + '"');
-  return { name: [g.name, g.admin1 || g.country].filter(Boolean).join(', '), lat: g.latitude, lon: g.longitude };
-}
-
-async function reverseName(lat, lon) {
-  // Open-Meteo has no reverse geocoding; BigDataCloud's client endpoint is free and keyless.
-  try {
-    const r = await fetchT(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`, {}, 6000);
-    const j = await r.json();
-    return [j.city || j.locality, j.principalSubdivision].filter(Boolean).join(', ') || 'My Location';
-  } catch { return 'My Location'; }
+// A US ZIP code, looked up with Open-Meteo geocoding (the place it names, and its position).
+async function geocode(zip) {
+  const r = await fetchT('https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&format=json&countryCode=US&name=' + zip, {}, 10000);
+  const g = ((await r.json()).results || [])[0];
+  if (!g) throw new Error('No place found for ZIP code ' + zip + '.');
+  return { zip, name: [g.name, g.admin1].filter(Boolean).join(', '), lat: g.latitude, lon: g.longitude };
 }
 
 /* National Weather Service marine forecast (US coastal waters and Great Lakes), from api.weather.gov,
@@ -322,17 +313,6 @@ async function fetchStories(cwa) {
   }).filter(s => s.src && MARINE_TOPIC.test(s.text.split(/\.\s/)[0]) && !seen.has(s.src) && seen.add(s.src));
 }
 
-function locate() {
-  return new Promise((res, rej) => {
-    if (!navigator.geolocation) return rej(new Error('Location not available'));
-    navigator.geolocation.getCurrentPosition(
-      p => res({ lat: p.coords.latitude, lon: p.coords.longitude }),
-      e => rej(new Error(e.code === 1 ? 'Location permission denied. Search for a city or ZIP code instead.' : 'Could not get your location. Search for a city or ZIP code instead.')),
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 10 * 60 * 1000 }
-    );
-  });
-}
-
 /* ---------- Render ---------- */
 const deg = v => Math.round(v) + '°';
 const hhmm = iso => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -437,7 +417,7 @@ function escapeHtml(s) { return String(s).replace(/[&<>"']/g, ch => ({ '&':'&amp
 
 /* ---------- Flow ---------- */
 async function load() {
-  if (!place) return showMsg('Tap 📍 to use your location, or search for a city or ZIP code.');
+  if (!place) return showMsg('Enter a ZIP code above to see the forecast.');
   // Show cached data instantly, then refresh
   const p = place, key = `${p.lat},${p.lon},${units}`;
   if (loadingKey === key) return;   // this exact refresh is already running
@@ -548,31 +528,13 @@ async function loadNws() {
   }
 }
 
-async function useMyLocation() {
-  if (!app.querySelector('.hero')) showMsg('Finding your location…');
-  try {
-    const { lat, lon } = await locate();
-    // Show the forecast right away; the place name fills in when the lookup answers.
-    const near = place && Math.abs(place.lat - lat) < 0.05 && Math.abs(place.lon - lon) < 0.05;
-    const p = place = { name: near ? place.name : 'My Location', lat, lon };
-    store.set('place', p);
-    if (!near) app.innerHTML = '<div class="msg"><span class="spin">◌</span><br>Getting the forecast…</div>';
-    load();
-    const name = await reverseName(lat, lon);
-    if (place !== p || name === 'My Location') return;
-    p.name = name;
-    store.set('place', p);
-    const el = app.querySelector('.place');
-    if (el) el.textContent = name;
-  } catch (e) { if (!app.querySelector('.hero')) showMsg(e.message); }
-}
-
 $('searchForm').addEventListener('submit', async ev => {
   ev.preventDefault();
   const q = $('q').value.trim();
   if (!q) return;
+  if (!/^\d{5}$/.test(q)) return showMsg('Enter a 5-digit ZIP code, such as 32931.');
   $('q').blur();
-  app.innerHTML = '<div class="msg"><span class="spin">◌</span><br>Finding ' + escapeHtml(q) + '…</div>';
+  app.innerHTML = '<div class="msg"><span class="spin">◌</span><br>Finding ZIP code ' + escapeHtml(q) + '…</div>';
   try {
     place = await geocode(q);
     store.set('place', place);
@@ -580,8 +542,6 @@ $('searchForm').addEventListener('submit', async ev => {
     load();
   } catch (e) { showMsg(e.name === 'AbortError' ? 'The place search is not responding. Try again.' : e.message); }
 });
-
-$('locBtn').addEventListener('click', useMyLocation);
 
 $('unitBtn').textContent = '°' + units;
 $('unitBtn').addEventListener('click', () => {
@@ -591,8 +551,7 @@ $('unitBtn').addEventListener('click', () => {
   load();
 });
 
-if (place) load();
-else useMyLocation();
+load();
 
 // Version number, from VERSION in sw.js (the one place it's changed).
 fetch('sw.js', { cache: 'no-cache' }).then(r => r.text()).then(t => {
