@@ -77,6 +77,11 @@
   .btn.sec { background: var(--input); color: var(--text); }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .two .btn { width: auto; }
+  .ask { margin: auto; width: min(340px, calc(100% - 32px)); border: 0; border-radius: 16px; padding: 20px; background: var(--card); color: var(--text); }
+  .ask::backdrop { background: rgba(0,0,0,0.45); }
+  .ask h2 { font-size: 18px; margin-bottom: 8px; }
+  .ask .two { margin-top: 18px; }
+  .btn.danger { background: var(--danger); }
   .linkbtn { font: inherit; font-size: 15px; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 4px; }
   .ghon { display: flex; align-items: center; gap: 10px; }
   .ghon .note { flex: 1; }
@@ -158,6 +163,14 @@
     <section class="card stack done" id="after" hidden></section>
 
     <p class="foot"><a href="../slideshow/">Open slideshow</a> · <a href="#" id="lockLink" title="Forgets the passphrase and GitHub token in this browser (the slideshow here too)">Lock</a> · <span class="ver" data-name="Manager"></span></p>
+
+  <dialog class="ask" id="lockAsk">
+    <form method="dialog">
+      <h2>Forget the passphrase?</h2>
+      <p class="note">This browser forgets the passphrase and the GitHub token. The Manager and the slideshow in this browser ask for the passphrase again, and you'll need to connect GitHub again.</p>
+      <div class="two"><button class="btn sec" value="no">Cancel</button><button class="btn danger" value="yes">Forget</button></div>
+    </form>
+  </dialog>
   </div>
 
 <script src="../slideshow/vault.js"></script>
@@ -229,7 +242,8 @@ $('lockForm').onsubmit = async ev => {
   btn.disabled = false;
 };
 
-$('lockLink').onclick = async e => { e.preventDefault(); await Vault.forgetKey(); location.reload(); };
+$('lockLink').onclick = e => { e.preventDefault(); $('lockAsk').returnValue = ''; $('lockAsk').showModal(); };
+$('lockAsk').onclose = async () => { if ($('lockAsk').returnValue === 'yes') { await Vault.forgetKey(); location.reload(); } };
 
 async function start() {
   $('pass1').value = $('pass2').value = '';
