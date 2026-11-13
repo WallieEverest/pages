@@ -1,53 +1,17 @@
-// Shell, photo list and vault: network first (so new photos show up), cache fallback offline.
-// Photos (plain or encrypted): cache first, saved the first time each one is viewed, so the slideshow plays offline.
-// Encrypted photos stay encrypted in the cache; they are only decrypted in memory for display.
-const VERSION = 'slideshow-v11';
-const PHOTOS = 'slideshow-photos';
-const SHELL = ['./', 'index.html', 'vault.js', 'manifest.json', 'icons/icon-180.png', 'icons/icon-192.png'];
+// The Slideshow app was removed on 2026-11-12. This last version replaces the installed one, deletes the
+// removed apps' caches and reloads any open copy into the "removed" page (index.html), which unregisters it.
+const VERSION = 'slideshow-v12';
 
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
-});
+self.addEventListener('install', () => self.skipWaiting());
 
 self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k.startsWith('slideshow-v') && k !== VERSION).map(k => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
+  const done = caches.keys()
+    .then(keys => Promise.all(keys.filter(k => /^(slideshow|manager)-/.test(k)).map(k => caches.delete(k))))
+    .then(() => self.clients.claim());
+  e.waitUntil(done);
+  // Reload open pages only once activation is over: a reload started inside it waits for it, and neither finishes.
+  done.then(() => self.clients.matchAll({ type: 'window' }))
+    .then(pages => pages.forEach(p => p.navigate(p.url).catch(() => {})));
 });
 
-self.addEventListener('fetch', e => {
-  const req = e.request, url = new URL(req.url);
-  if (req.method !== 'GET' || url.origin !== location.origin) return;
-
-  // The slideshow's minute check (header X-Live): network only, so the page can tell it's offline.
-  if (req.headers.has('x-live')) {
-    e.respondWith(fetch(req.url, { cache: 'no-cache' }).then(r => {
-      if (r.ok) { const copy = r.clone(); caches.open(VERSION).then(c => c.put(req.url, copy)); }
-      return r;
-    }));
-    return;
-  }
-
-  if (url.pathname.includes('/photos/')) {
-    e.respondWith(
-      caches.open(PHOTOS).then(c => c.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req).then(r => {
-        if (r.ok) c.put(req, r.clone());
-        return r;
-      })))
-    );
-    return;
-  }
-
-  // no-cache: check with the server (a cheap 304 when unchanged) instead of taking the browser's copy, which GitHub Pages
-  // lets it keep for 10 minutes: that served an old page while the version label (fetched fresh) showed the new one.
-  e.respondWith(
-    fetch(req.url, { cache: 'no-cache' })
-      .then(r => {
-        if (r.ok) { const copy = r.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
-        return r;
-      })
-      .catch(() => caches.match(req, { ignoreSearch: true }).then(hit => hit || Response.error()))
-  );
-});
+// No fetch handler: everything comes from the network.

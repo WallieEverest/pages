@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>My Apps</title>
-<!-- Opens in Safari (not full screen). Boating and Slideshow are the full-screen apps. -->
+<!-- Opens in Safari (not full screen). Boating is the full-screen app. -->
 <meta name="apple-mobile-web-app-title" content="My Apps">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -32,8 +32,6 @@
 <body>
   <h1>My Apps</h1>
   <a class="app" href="weather/"><img src="weather/icons/icon-180.png" alt=""><div><b>Boating <i data-sw="weather/sw.js"></i></b><span>Local wind, weather and NWS marine forecast</span></div></a>
-  <a class="app" href="slideshow/"><img src="slideshow/icons/icon-180.png" alt=""><div><b>Slideshow <i data-sw="slideshow/sw.js"></i></b><span>Viewer for this site's photos</span></div></a>
-  <a class="app" href="manager/"><img src="manager/icons/icon-180.png" alt=""><div><b>Manager <i data-sw="manager/sw.js"></i></b><span>Add, caption and encrypt slideshow photos</span></div></a>
   <div class="how">
     <b>Install on iPhone or iPad</b>
     <ol>
@@ -44,7 +42,7 @@
   <p class="foot" id="ver"></p>
 <script>
 // This page has no service worker, so its version is kept here: bump it when the launcher changes.
-const VERSION = 'my-apps-v2';
+const VERSION = 'my-apps-v3';
 document.getElementById('ver').textContent = 'My Apps v' + VERSION.split('-v').pop();
 document.getElementById('ver').title = VERSION;
 // Each app's deployed version, from VERSION in its sw.js.

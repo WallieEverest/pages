@@ -1,43 +1,17 @@
-// Shell, vault and photo list: network first (so changes show up), cache fallback offline.
-// Encrypted photos (for thumbnails): cache first, sharing the slideshow's photo cache so nothing is stored twice.
-const VERSION = 'manager-v10';
-const PHOTOS = 'slideshow-photos';
-const SHELL = ['./', 'index.html', 'github.js', 'manifest.json', 'icons/icon-180.png', 'icons/icon-192.png', '../slideshow/vault.js'];
+// The Manager app was removed on 2026-11-12. This last version replaces the installed one, deletes the
+// removed apps' caches and reloads any open copy into the "removed" page (index.html), which unregisters it.
+const VERSION = 'manager-v11';
 
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
-});
+self.addEventListener('install', () => self.skipWaiting());
 
 self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k.startsWith('manager-v') && k !== VERSION).map(k => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
+  const done = caches.keys()
+    .then(keys => Promise.all(keys.filter(k => /^(slideshow|manager)-/.test(k)).map(k => caches.delete(k))))
+    .then(() => self.clients.claim());
+  e.waitUntil(done);
+  // Reload open pages only once activation is over: a reload started inside it waits for it, and neither finishes.
+  done.then(() => self.clients.matchAll({ type: 'window' }))
+    .then(pages => pages.forEach(p => p.navigate(p.url).catch(() => {})));
 });
 
-self.addEventListener('fetch', e => {
-  const req = e.request, url = new URL(req.url);
-  if (req.method !== 'GET' || url.origin !== location.origin) return;
-
-  if (url.pathname.includes('/slideshow/photos/')) {
-    e.respondWith(
-      caches.open(PHOTOS).then(c => c.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req).then(r => {
-        if (r.ok) c.put(req, r.clone());
-        return r;
-      })))
-    );
-    return;
-  }
-
-  // no-cache: check with the server (a cheap 304 when unchanged) instead of taking the browser's copy, which GitHub Pages
-  // lets it keep for 10 minutes: that served an old page while the version label (fetched fresh) showed the new one.
-  e.respondWith(
-    fetch(req.url, { cache: 'no-cache' })
-      .then(r => {
-        if (r.ok) { const copy = r.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
-        return r;
-      })
-      .catch(() => caches.match(req, { ignoreSearch: true }).then(hit => hit || Response.error()))
-  );
-});
+// No fetch handler: everything comes from the network.
